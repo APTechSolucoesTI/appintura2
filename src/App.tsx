@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
 import { CarregandoRota } from '@/components/layout/carregando-rota'
 import { EntrarPage } from '@/pages/entrar'
@@ -110,6 +110,24 @@ const OrdemDetalhePage = lazy(() =>
 const NovaOrdemPage = lazy(() =>
   import('@/pages/app/producao/nova-ordem').then((m) => ({ default: m.NovaOrdemPage })),
 )
+const OrcamentosPage = lazy(() =>
+  import('@/pages/app/orcamentos/lista').then((m) => ({ default: m.OrcamentosPage })),
+)
+const OrcamentoFormularioPage = lazy(() =>
+  import('@/pages/app/orcamentos/formulario').then((m) => ({
+    default: m.OrcamentoFormularioPage,
+  })),
+)
+const OrcamentoDetalhePage = lazy(() =>
+  import('@/pages/app/orcamentos/detalhe').then((m) => ({
+    default: m.OrcamentoDetalhePage,
+  })),
+)
+const OrcamentoPublicoPage = lazy(() =>
+  import('@/pages/orcamento-publico').then((m) => ({
+    default: m.OrcamentoPublicoPage,
+  })),
+)
 const ConsultaPublicaPage = lazy(() =>
   import('@/pages/consulta-os').then((m) => ({ default: m.ConsultaPublicaPage })),
 )
@@ -207,11 +225,28 @@ export function App() {
           {/* Consultas públicas apontadas pelos QR codes — sem login. */}
           <Route path="/os/:id" element={<ConsultaPublicaPage />} />
           <Route path="/romaneio/:tipo/:id" element={<ConsultaRomaneioPage />} />
+          {/* Portal de aprovacao do cliente: token opaco, nunca o id do
+              orcamento — com id sequencial qualquer um enumeraria a carteira. */}
+          <Route path="/orcamento/:token" element={<OrcamentoPublicoPage />} />
 
           <Route path="/app" element={<ProtectedLayout />}>
             <Route index element={<InicioPage />} />
             {/* Sem ModuloRoute: a central de notificações vale para todo papel. */}
             <Route path="notificacoes" element={<NotificacoesPage />} />
+
+            <Route
+              path="orcamentos"
+              element={
+                <ModuloRoute modulo="orcamentos">
+                  <Outlet />
+                </ModuloRoute>
+              }
+            >
+              <Route index element={<OrcamentosPage />} />
+              <Route path="novo" element={<OrcamentoFormularioPage />} />
+              <Route path=":id" element={<OrcamentoDetalhePage />} />
+              <Route path=":id/editar" element={<OrcamentoFormularioPage />} />
+            </Route>
 
             <Route
               path="cadastros"

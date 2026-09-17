@@ -11,6 +11,7 @@ import type { Role } from '@/types/domain'
 export const MODULOS = [
   'dashboard',
   'cadastros',
+  'orcamentos',
   'recebimento',
   'ordens_servico',
   'estoque',
@@ -24,6 +25,9 @@ export type Modulo = (typeof MODULOS)[number]
 const ACESSO_POR_MODULO: Record<Modulo, readonly Role[]> = {
   dashboard: ['admin', 'gestor_producao', 'operador_pintura', 'qualidade', 'financeiro', 'portaria'],
   cadastros: ['admin', 'gestor_producao'],
+  // Orçamento carrega preço de venda e margem: cabine, qualidade e portaria
+  // não tem por que ver. Espelha `pode_gerenciar_orcamento()` no banco.
+  orcamentos: ['admin', 'gestor_producao', 'financeiro'],
   recebimento: ['admin', 'gestor_producao', 'portaria'],
   ordens_servico: ['admin', 'gestor_producao', 'operador_pintura', 'qualidade'],
   estoque: ['admin', 'gestor_producao'],

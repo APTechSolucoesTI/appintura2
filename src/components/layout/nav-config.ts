@@ -1,6 +1,7 @@
 import {
   Boxes,
   ClipboardList,
+  FileText,
   LayoutDashboard,
   PackageCheck,
   Settings,
@@ -25,6 +26,17 @@ export interface NavGrupo {
 }
 
 export const NAV_GRUPOS: NavGrupo[] = [
+  {
+    titulo: 'Comercial',
+    itens: [
+      {
+        modulo: 'orcamentos',
+        label: 'Orçamentos',
+        to: '/app/orcamentos',
+        icon: FileText,
+      },
+    ],
+  },
   {
     titulo: 'Operação',
     itens: [
