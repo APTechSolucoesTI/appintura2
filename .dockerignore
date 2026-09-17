@@ -14,8 +14,16 @@ dist-ssr
 .env.*
 *.local
 
-# As migrations e Edge Functions rodam no Supabase, não no container do front.
-supabase
+# Migrations e seed rodam no Supabase, não no container do front.
+#
+# `supabase/functions` NÃO entra aqui: `src/services/pdf-service.ts` importa
+# `functions/_shared/romaneio-pdf`, o layout do PDF que o front e a Edge
+# Function compartilham para gerar o MESMO documento. Excluir a pasta inteira
+# quebra o `tsc -b` dentro da imagem.
+supabase/migrations
+supabase/seed.sql
+supabase/.temp
+supabase/config.toml
 
 .vscode
 .idea
