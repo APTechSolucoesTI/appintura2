@@ -32,16 +32,16 @@ interface Payload {
   autor_nome: string
   autor_documento: string
   mensagem: string
+  /** Aprovacao parcial: ids aceitos. `null` = aceitou tudo. */
+  itens_aprovados: string[] | null
 }
 
 /** Schema estrito: a superfície pública é o ponto mais sensível do módulo. */
 function validar(corpo: unknown): Payload | null {
   if (typeof corpo !== 'object' || corpo === null) return null
 
-  const { token, decisao, autor_nome, autor_documento, mensagem } = corpo as Record<
-    string,
-    unknown
-  >
+  const { token, decisao, autor_nome, autor_documento, mensagem, itens_aprovados } =
+    corpo as Record<string, unknown>
 
   if (!tokenValido(token)) return null
   if (typeof decisao !== 'string' || !DECISOES.includes(decisao as Decisao)) return null
@@ -49,12 +49,25 @@ function validar(corpo: unknown): Payload | null {
   const texto = (valor: unknown, limite: number) =>
     typeof valor === 'string' ? valor.trim().slice(0, limite) : ''
 
+  // Lista de itens: aceita ausente/null (= tudo) ou um array de uuids. Qualquer
+  // outra coisa e rejeitada aqui, antes de chegar no banco.
+  let itens: string[] | null = null
+
+  if (itens_aprovados !== undefined && itens_aprovados !== null) {
+    if (!Array.isArray(itens_aprovados) || itens_aprovados.length > 200) return null
+    if (!itens_aprovados.every((id) => typeof id === 'string' && /^[0-9a-f-]{36}$/.test(id))) {
+      return null
+    }
+    itens = itens_aprovados as string[]
+  }
+
   return {
     token,
     decisao: decisao as Decisao,
     autor_nome: texto(autor_nome, 200),
     autor_documento: texto(autor_documento, 32),
     mensagem: texto(mensagem, 2000),
+    itens_aprovados: itens,
   }
 }
 
@@ -86,10 +99,19 @@ Deno.serve(async (req) => {
     p_mensagem: payload.mensagem,
     p_ip: ip,
     p_user_agent: userAgentDaRequisicao(req),
+    p_itens_aprovados: payload.itens_aprovados,
   })
 
   if (error) {
     console.error('falha ao registrar decisão', error.code)
+
+    // 22023 vem da guarda que recusa id de item de outro orçamento. É erro do
+    // pedido, não do servidor — 500 aqui mandaria o cliente tentar de novo
+    // eternamente.
+    if (error.code === '22023') {
+      return json({ ok: false, motivo: 'itens_invalidos' }, 400)
+    }
+
     return json({ ok: false, motivo: 'falha' }, 500)
   }
 
