@@ -1,0 +1,380 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Tipografia da marca AP — Inter (display em negrito + corpo), JetBrains Mono (códigos) */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    /* --- Tipografia --- */
+    --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-heading: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
+
+    /* --- Paleta de marca APFiscal/APPintura (não improvisar variações) --- */
+    --color-brand-dark: var(--brand-dark);
+    --color-brand-medium: var(--brand-medium);
+    --color-brand-accent: var(--brand-accent);
+    --color-brand-bg: var(--brand-bg);
+    --color-brand-surface: var(--brand-surface);
+    --color-brand-text: var(--brand-text);
+    --color-brand-muted: var(--brand-muted);
+
+    /* --- Cores semânticas de status (convenção universal, fora da paleta de marca) --- */
+    --color-status-success: var(--status-success);
+    --color-status-success-soft: var(--status-success-soft);
+    --color-status-success-strong: var(--status-success-strong);
+    --color-status-warning: var(--status-warning);
+    --color-status-warning-soft: var(--status-warning-soft);
+    --color-status-warning-strong: var(--status-warning-strong);
+    --color-status-danger: var(--status-danger);
+    --color-status-danger-soft: var(--status-danger-soft);
+    --color-status-danger-strong: var(--status-danger-strong);
+    --color-status-neutral: var(--status-neutral);
+    --color-status-neutral-soft: var(--status-neutral-soft);
+    --color-status-neutral-strong: var(--status-neutral-strong);
+
+    /* --- Tokens shadcn mapeados sobre a marca --- */
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+
+    /* Séries categóricas dos gráficos. Validadas com o script do skill dataviz
+       nos dois modos: faixa de luminosidade, piso de croma, separação para
+       daltonismo (deutan ΔE 14,9 · tritan 13,8) e contraste contra a superfície.
+       Não trocar sem revalidar. */
+    --color-serie-1: var(--serie-1);
+    --color-serie-2: var(--serie-2);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+
+    /* --- Raios: cards 12px, botões 8px, inputs 4px --- */
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: 0.75rem;
+    --radius-2xl: 1rem;
+    --radius-3xl: 1.5rem;
+    --radius-4xl: 2rem;
+    --radius-card: 0.75rem;
+    --radius-field: 0.25rem;
+
+    /* --- Sombras dos cards (suave em repouso, ampliada no hover) --- */
+    --shadow-card: 0 1px 2px color-mix(in srgb, var(--brand-dark) 6%, transparent),
+        0 4px 14px color-mix(in srgb, var(--brand-dark) 7%, transparent);
+    --shadow-card-hover: 0 4px 10px color-mix(in srgb, var(--brand-dark) 8%, transparent),
+        0 14px 34px color-mix(in srgb, var(--brand-dark) 16%, transparent);
+}
+
+:root {
+    /* Paleta de marca — valores canônicos */
+    --brand-dark: #0d2b5e;
+    --brand-medium: #1a6b8a;
+    --brand-accent: #00c2cb;
+    --brand-bg: #f0f4f8;
+    --brand-surface: #ffffff;
+    --brand-text: #1a1a2e;
+    --brand-muted: #4a5568;
+
+    /* Status semânticos — `strong` é a variante validada para texto AA sobre `soft` */
+    --status-success: #16a34a;
+    --status-success-soft: #dcfce7;
+    --status-success-strong: #166534;
+    --status-warning: #d97706;
+    --status-warning-soft: #fef3c7;
+    --status-warning-strong: #b45309;
+    --status-danger: #dc2626;
+    --status-danger-soft: #fee2e2;
+    --status-danger-strong: #b91c1c;
+    --status-neutral: #64748b;
+    --status-neutral-soft: #eef2f7;
+    --status-neutral-strong: #475569;
+
+    /* Os mesmos tons servem claro e escuro — ambos passaram na validação. */
+    --serie-1: #00a0c0;
+    --serie-2: #6d5ae0;
+
+    --background: var(--brand-bg);
+    --foreground: var(--brand-text);
+    --card: var(--brand-surface);
+    --card-foreground: var(--brand-text);
+    --popover: var(--brand-surface);
+    --popover-foreground: var(--brand-text);
+    --primary: var(--brand-dark);
+    --primary-foreground: #ffffff;
+    --secondary: #e2eaf3;
+    --secondary-foreground: var(--brand-dark);
+    --muted: #e8eef5;
+    --muted-foreground: var(--brand-muted);
+    --accent: #d9f5f7;
+    --accent-foreground: var(--brand-dark);
+    --destructive: var(--status-danger);
+    --border: #d6e0ea;
+    --input: #c7d5e3;
+    --ring: var(--brand-medium);
+    --chart-1: var(--brand-dark);
+    --chart-2: var(--brand-medium);
+    --chart-3: var(--brand-accent);
+    --chart-4: #7fa8c4;
+    --chart-5: var(--brand-muted);
+    --radius: 0.5rem;
+
+    /* Sidebar em brand-dark: presença de marca + contraste alto no chão de fábrica */
+    --sidebar: var(--brand-dark);
+    --sidebar-foreground: #dce7f3;
+    --sidebar-primary: var(--brand-accent);
+    --sidebar-primary-foreground: var(--brand-dark);
+    --sidebar-accent: #ffffff1a;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #ffffff1f;
+    --sidebar-ring: var(--brand-accent);
+}
+
+.dark {
+    --brand-bg: #0a1830;
+    --brand-surface: #10203d;
+    --brand-text: #e8eef7;
+    --brand-muted: #9fb3c8;
+
+    --status-success-soft: #14321f;
+    --status-success-strong: #6ee7a5;
+    --status-warning-soft: #33250a;
+    --status-warning-strong: #fcd34d;
+    --status-danger-soft: #3a1414;
+    --status-danger-strong: #fca5a5;
+    --status-neutral-soft: #1b2b45;
+    --status-neutral-strong: #cbd5e1;
+
+    --background: var(--brand-bg);
+    --foreground: var(--brand-text);
+    --card: var(--brand-surface);
+    --card-foreground: var(--brand-text);
+    --popover: var(--brand-surface);
+    --popover-foreground: var(--brand-text);
+    --primary: var(--brand-accent);
+    --primary-foreground: #06243b;
+    --secondary: #1a2f4f;
+    --secondary-foreground: #e8eef7;
+    --muted: #1a2f4f;
+    --muted-foreground: var(--brand-muted);
+    --accent: #14384a;
+    --accent-foreground: var(--brand-accent);
+    --destructive: #f87171;
+    --border: #ffffff1f;
+    --input: #ffffff2e;
+    --ring: var(--brand-accent);
+    --sidebar: #071426;
+    --sidebar-foreground: #dce7f3;
+    --sidebar-primary: var(--brand-accent);
+    --sidebar-primary-foreground: #06243b;
+    --sidebar-accent: #ffffff14;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #ffffff1f;
+    --sidebar-ring: var(--brand-accent);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+
+    html {
+        @apply font-sans antialiased;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+
+    /* Títulos em Inter. O H1 usa 800 com tracking negativo, como no protótipo:
+       é o peso e o aperto que dão o ar de display sem trocar de família. */
+    h1 {
+        @apply font-heading font-extrabold;
+        letter-spacing: -0.025em;
+    }
+
+    h2,
+    h3 {
+        @apply font-heading font-bold tracking-tight;
+    }
+}
+
+@utility bg-brand-gradient {
+    background-image: linear-gradient(
+        135deg,
+        var(--brand-dark) 0%,
+        var(--brand-medium) 60%,
+        var(--brand-accent) 100%
+    );
+}
+
+/* Rótulo pequeno em versalete que abre toda seção e todo card de indicador. */
+@utility eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-medium);
+}
+
+/*
+ * Selo de status: base compartilhada por todos os badges semânticos (urgência,
+ * condição, situação de título, resultado de inspeção). Só a forma e a
+ * tipografia moram aqui — a cor vem do tom semântico de cada módulo.
+ */
+@utility selo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: calc(infinity * 1px);
+    padding: 0.125rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* Cartão de destaque em gradiente escuro, usado em blocos de resumo. */
+@utility bg-surface-gradient {
+    background-image: linear-gradient(
+        135deg,
+        var(--brand-dark) 0%,
+        #123f6b 55%,
+        #10566f 100%
+    );
+}
+
+@utility card-interactive {
+    transition:
+        transform 200ms ease,
+        box-shadow 200ms ease;
+    box-shadow: var(--shadow-card);
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-card-hover);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+
+        &:hover {
+            transform: none;
+        }
+    }
+}
+
+/*
+ * Listagens em tela estreita (abaixo de lg): a tabela deixa de ser tabela e
+ * cada linha vira um cartão, com o nome da coluna acima do valor. Varrer uma
+ * tabela de lado no celular ou no tablet da portaria é justamente o que não
+ * funciona — aqui a linha cresce para baixo, que é onde sobra espaço.
+ *
+ * O rótulo vem do `data-rotulo` que o componente Table copia do cabeçalho.
+ */
+@media (width < 64rem) {
+    [data-slot='table-container'] {
+        overflow-x: visible;
+    }
+
+    [data-slot='table'] {
+        display: block;
+    }
+
+    [data-slot='table-header'] {
+        display: none;
+    }
+
+    [data-slot='table-body'] {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    [data-slot='table-row'] {
+        display: block;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-card);
+        padding: 0.625rem 0.875rem;
+    }
+
+    /*
+     * `!important` porque estas duas precisam vencer as utilitárias de coluna
+     * das páginas: `hidden lg:table-cell` esconderia o campo justamente onde o
+     * cartão tem espaço para ele, e `text-right` jogaria o valor para longe do
+     * próprio rótulo.
+     */
+    [data-slot='table-cell'] {
+        display: block !important;
+        padding: 0.375rem 0;
+        text-align: left !important;
+        white-space: normal;
+    }
+
+    /* Coluna de ações: encostada à direita na tabela, sob o rótulo no cartão. */
+    [data-slot='table-cell'] .justify-end {
+        justify-content: flex-start;
+    }
+
+    [data-slot='table-cell'][data-rotulo]::before {
+        content: attr(data-rotulo);
+        display: block;
+        margin-bottom: 0.0625rem;
+        font-family: var(--font-mono);
+        font-size: 0.625rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+}
+
+/*
+ * No tablet o cartão ainda tem largura sobrando: os campos vão para duas
+ * colunas e o primeiro — que é sempre o identificador do registro — ocupa a
+ * linha inteira, para o cartão continuar sendo lido de cima para baixo.
+ */
+@media (40rem <= width < 64rem) {
+    [data-slot='table-row'] {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 1.5rem;
+        align-items: start;
+    }
+
+    [data-slot='table-row'] > [data-slot='table-cell']:first-child {
+        grid-column: 1 / -1;
+    }
+}
