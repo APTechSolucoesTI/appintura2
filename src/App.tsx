@@ -123,6 +123,11 @@ const OrcamentoDetalhePage = lazy(() =>
     default: m.OrcamentoDetalhePage,
   })),
 )
+const FunilOrcamentosPage = lazy(() =>
+  import('@/pages/app/orcamentos/funil').then((m) => ({
+    default: m.FunilOrcamentosPage,
+  })),
+)
 const OrcamentoPublicoPage = lazy(() =>
   import('@/pages/orcamento-publico').then((m) => ({
     default: m.OrcamentoPublicoPage,
@@ -243,6 +248,7 @@ export function App() {
               }
             >
               <Route index element={<OrcamentosPage />} />
+              <Route path="funil" element={<FunilOrcamentosPage />} />
               <Route path="novo" element={<OrcamentoFormularioPage />} />
               <Route path=":id" element={<OrcamentoDetalhePage />} />
               <Route path=":id/editar" element={<OrcamentoFormularioPage />} />

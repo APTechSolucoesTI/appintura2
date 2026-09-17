@@ -1,5 +1,13 @@
 import { CHAVE_ANON_PUBLICA, supabase, tokenArmazenado, urlFuncao } from '@/lib/supabase'
-import type { Orcamento, OrcamentoLink, OrcamentoPublico } from '@/types/orcamento'
+import type {
+  LinhaChecklistDevolucao,
+  LinhaDiff,
+  LinhaFunil,
+  MotivoRecusa,
+  Orcamento,
+  OrcamentoLink,
+  OrcamentoPublico,
+} from '@/types/orcamento'
 
 import { criarStoreSupabase } from './supabase-store'
 
@@ -164,12 +172,20 @@ export interface ResultadoDecisao {
   decisao?: string
   numero?: number
   repetido?: boolean
+  itens_aprovados?: number
+  itens_propostos?: number
 }
 
 export async function decidirOrcamentoPublico(
   token: string,
   decisao: Decisao,
-  dados: { autor_nome?: string; autor_documento?: string; mensagem?: string } = {},
+  dados: {
+    autor_nome?: string
+    autor_documento?: string
+    mensagem?: string
+    /** Aprovacao parcial: ids aceitos. Omitir = aceitou tudo. */
+    itens_aprovados?: string[]
+  } = {},
 ): Promise<ResultadoDecisao> {
   try {
     const resposta = await fetch(urlFuncao('orcamento-decisao'), {
@@ -181,6 +197,7 @@ export async function decidirOrcamentoPublico(
         autor_nome: dados.autor_nome ?? '',
         autor_documento: dados.autor_documento ?? '',
         mensagem: dados.mensagem ?? '',
+        itens_aprovados: dados.itens_aprovados ?? null,
       }),
     })
 
@@ -190,4 +207,124 @@ export async function decidirOrcamentoPublico(
   } catch {
     return { ok: false, motivo: 'rede' }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Fase 4 — anexos e checklist de devolução
+// ---------------------------------------------------------------------------
+
+const BUCKET_ANEXOS = 'appintura2-orcamento-anexos'
+
+/**
+ * Sobe um anexo e registra a linha.
+ *
+ * Caminho `{tenant_id}/{orcamento_id}/...` porque a policy de Storage compara
+ * exatamente a primeira pasta com os tenants do usuário — o `tenantId` aqui
+ * nunca pode vir do formulário.
+ */
+export async function anexarArquivo(
+  tenantId: string,
+  orcamentoId: string,
+  arquivo: File,
+  tipo: 'foto_referencia' | 'desenho_tecnico' | 'outro' = 'foto_referencia',
+): Promise<void> {
+  const extensao = arquivo.name.split('.').pop()?.toLowerCase() ?? 'bin'
+  const caminho = `${tenantId}/${orcamentoId}/${crypto.randomUUID()}.${extensao}`
+
+  const { error: erroUpload } = await supabase.storage
+    .from(BUCKET_ANEXOS)
+    .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false })
+
+  if (erroUpload) {
+    throw new OrcamentoError(`Não foi possível enviar o anexo: ${erroUpload.message}`)
+  }
+
+  const { error } = await supabase.from('orcamento_anexos').insert({
+    tenant_id: tenantId,
+    orcamento_id: orcamentoId,
+    storage_path: caminho,
+    nome: arquivo.name,
+    tipo,
+  } as never)
+
+  if (error) {
+    throw new OrcamentoError('Arquivo enviado, mas não foi possível registrá-lo.')
+  }
+}
+
+/** URL temporária: o bucket é privado, um `<img src>` direto receberia 400. */
+export async function urlAnexo(caminho: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from(BUCKET_ANEXOS)
+    .createSignedUrl(caminho, 3600)
+
+  return error ? null : data.signedUrl
+}
+
+export async function removerAnexo(tenantId: string, anexoId: string): Promise<void> {
+  const { error } = await supabase
+    .from('orcamento_anexos')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('id', anexoId)
+
+  if (error) throw new OrcamentoError('Não foi possível remover o anexo.')
+}
+
+/** Recebido x devolvido por item, já ligado ao orçamento de origem. */
+export async function checklistDevolucao(
+  tenantId: string,
+  romaneioId: string,
+): Promise<LinhaChecklistDevolucao[]> {
+  const { data, error } = await supabase
+    .from('vw_checklist_devolucao')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('romaneio_id', romaneioId)
+
+  if (error) throw new OrcamentoError('Não foi possível carregar o checklist.')
+
+  return (data ?? []) as unknown as LinhaChecklistDevolucao[]
+}
+
+// ---------------------------------------------------------------------------
+// Fase 5 — diff de versões e funil
+// ---------------------------------------------------------------------------
+
+/** Diferença entre este orçamento e a versão que ele substituiu. */
+export async function diffOrcamento(orcamentoId: string): Promise<LinhaDiff[]> {
+  const { data, error } = await supabase.rpc('diff_orcamento', {
+    p_orcamento_id: orcamentoId,
+  })
+
+  if (error) throw new OrcamentoError('Não foi possível comparar as versões.')
+
+  // `igual` não vai para a tela: o que interessa numa revisão é o que MUDOU.
+  return ((data ?? []) as LinhaDiff[]).filter((linha) => linha.situacao !== 'igual')
+}
+
+export async function funilOrcamentos(tenantId: string): Promise<LinhaFunil[]> {
+  const { data, error } = await supabase
+    .from('vw_funil_orcamentos')
+    .select('*')
+    .eq('tenant_id', tenantId)
+
+  if (error) throw new OrcamentoError('Não foi possível carregar o funil.')
+
+  return ((data ?? []) as unknown as LinhaFunil[]).sort((a, b) =>
+    b.mes.localeCompare(a.mes),
+  )
+}
+
+export async function motivosDeRecusa(tenantId: string): Promise<MotivoRecusa[]> {
+  const { data, error } = await supabase
+    .from('vw_motivos_recusa')
+    .select('*')
+    .eq('tenant_id', tenantId)
+
+  if (error) throw new OrcamentoError('Não foi possível carregar os motivos.')
+
+  return ((data ?? []) as unknown as MotivoRecusa[]).sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  )
 }

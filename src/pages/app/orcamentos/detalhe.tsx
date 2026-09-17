@@ -27,6 +27,9 @@ import {
 } from '@/services/orcamento-service'
 import { EVENTO_ORCAMENTO_LABEL, ehEditavel, estaEmAberto } from '@/types/orcamento'
 
+import { AnexosOrcamento } from '@/features/orcamentos/components/anexos-orcamento'
+import { DiffVersoes } from '@/features/orcamentos/components/diff-versoes'
+
 import { BadgeStatusOrcamento } from './lista'
 
 export function OrcamentoDetalhePage() {
@@ -194,7 +197,14 @@ export function OrcamentoDetalhePage() {
                 <TableBody>
                   {orcamento.itens.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.descricao}</TableCell>
+                      <TableCell className="font-medium">
+                        {item.descricao}
+                        {!item.aprovado && (
+                          <span className="ml-2 text-xs text-status-danger-strong">
+                            recusado pelo cliente
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">
                         {item.tipo_acabamento || '—'}
                       </TableCell>
@@ -212,14 +222,39 @@ export function OrcamentoDetalhePage() {
                 </TableBody>
               </Table>
 
-              <div className="mt-4 flex items-baseline justify-end gap-3 border-t border-border pt-3">
-                <span className="text-sm text-muted-foreground">Total</span>
-                <strong className="font-mono text-lg text-brand-dark">
-                  {formatCurrency(orcamento.valor_total)}
-                </strong>
+              <div className="mt-4 space-y-1 border-t border-border pt-3">
+                <div className="flex items-baseline justify-end gap-3">
+                  <span className="text-sm text-muted-foreground">Proposto</span>
+                  <strong className="font-mono text-lg text-brand-dark">
+                    {formatCurrency(orcamento.valor_total)}
+                  </strong>
+                </div>
+
+                {orcamento.valor_aprovado !== null &&
+                  Number(orcamento.valor_aprovado) !== Number(orcamento.valor_total) && (
+                    <div className="flex items-baseline justify-end gap-3">
+                      <span className="text-sm text-muted-foreground">
+                        Fechado pelo cliente
+                      </span>
+                      <strong className="font-mono text-lg text-status-warning-strong">
+                        {formatCurrency(Number(orcamento.valor_aprovado))}
+                      </strong>
+                    </div>
+                  )}
               </div>
             </CardContent>
           </Card>
+
+          <AnexosOrcamento
+            tenantId={tenantAtivo.id}
+            orcamentoId={orcamento.id}
+            anexos={orcamento.anexos ?? []}
+            editavel={ehEditavel(orcamento.status)}
+          />
+
+          {orcamento.orcamento_versao_anterior_id && (
+            <DiffVersoes orcamentoId={orcamento.id} />
+          )}
 
           {orcamento.observacoes_internas && (
             <Card>

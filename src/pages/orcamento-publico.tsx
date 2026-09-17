@@ -53,6 +53,9 @@ export function OrcamentoPublicoPage() {
   const [documento, setDocumento] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [aceite, setAceite] = useState(false)
+  // Comeca vazio e vira a lista completa quando os dados chegam: antes da
+  // decisao, o proposto E o conjunto todo.
+  const [selecionados, setSelecionados] = useState<Set<string> | null>(null)
   const [resultado, setResultado] = useState<ResultadoDecisao | null>(null)
 
   const consulta = useQuery({
@@ -67,6 +70,9 @@ export function OrcamentoPublicoPage() {
         autor_nome: nome,
         autor_documento: documento,
         mensagem,
+        // Só manda a lista quando o cliente mexeu na seleção. Omitir é "aceitei
+        // tudo", e mantém o caminho de quem só clica em Aprovar intacto.
+        itens_aprovados: selecionados ? [...selecionados] : undefined,
       }),
     onSuccess: (dados) => {
       if (dados.ok) {
@@ -96,6 +102,11 @@ export function OrcamentoPublicoPage() {
   }
 
   const { orcamento, empresa, cliente, itens } = consulta.data
+  const aceitos = selecionados ?? new Set(itens.map((item) => item.id))
+  const totalAceito = itens
+    .filter((item) => aceitos.has(item.id))
+    .reduce((soma, item) => soma + Number(item.valor_total), 0)
+  const parcial = aceitos.size > 0 && aceitos.size < itens.length
   const jaDecidido = consulta.data.decidido || resultado !== null
   const podeDecidir = !jaDecidido && !orcamento.vencido
 
@@ -156,10 +167,31 @@ export function OrcamentoPublicoPage() {
       <section className="rounded-card border border-border bg-card p-4">
         <h2 className="text-sm font-semibold text-brand-dark">Itens</h2>
 
+        {podeDecidir && (
+          <p className="mt-1 text-xs text-brand-muted">
+            Desmarque o que não quiser contratar. O que ficar marcado é o que será
+            produzido e cobrado.
+          </p>
+        )}
+
         <ul className="mt-3 divide-y divide-border">
           {itens.map((item, indice) => (
-            <li key={indice} className="flex justify-between gap-4 py-3">
-              <div className="min-w-0">
+            <li key={item.id ?? indice} className="flex items-start justify-between gap-4 py-3">
+              {podeDecidir && (
+                <Checkbox
+                  className="mt-1"
+                  checked={aceitos.has(item.id)}
+                  aria-label={`Incluir ${item.descricao}`}
+                  onCheckedChange={(valor) => {
+                    const proximo = new Set(aceitos)
+                    if (valor === true) proximo.add(item.id)
+                    else proximo.delete(item.id)
+                    setSelecionados(proximo)
+                  }}
+                />
+              )}
+
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-brand-text">{item.descricao}</p>
                 <p className="text-xs text-brand-muted">
                   {item.quantidade} un.
@@ -175,11 +207,24 @@ export function OrcamentoPublicoPage() {
           ))}
         </ul>
 
-        <div className="mt-3 flex items-baseline justify-between border-t border-border pt-3">
-          <span className="text-sm text-brand-muted">Total</span>
-          <strong className="font-mono text-xl text-brand-dark">
-            {formatCurrency(orcamento.valor_total)}
-          </strong>
+        <div className="mt-3 space-y-1 border-t border-border pt-3">
+          {parcial && (
+            <div className="flex items-baseline justify-between text-sm text-brand-muted">
+              <span>Proposta completa</span>
+              <span className="font-mono line-through">
+                {formatCurrency(orcamento.valor_total)}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-brand-muted">
+              {parcial ? 'Total do que você selecionou' : 'Total'}
+            </span>
+            <strong className="font-mono text-xl text-brand-dark">
+              {formatCurrency(podeDecidir ? totalAceito : orcamento.valor_total)}
+            </strong>
+          </div>
         </div>
       </section>
 
@@ -218,9 +263,13 @@ export function OrcamentoPublicoPage() {
 
       {podeDecidir && (
         <div className="mt-6 grid gap-2 sm:grid-cols-3">
-          <Button size="lg" onClick={() => setModal('aprovado')}>
+          <Button
+            size="lg"
+            onClick={() => setModal('aprovado')}
+            disabled={aceitos.size === 0}
+          >
             <Check aria-hidden />
-            Aprovar
+            {parcial ? `Aprovar ${aceitos.size} de ${itens.length}` : 'Aprovar'}
           </Button>
 
           <Button size="lg" variant="outline" onClick={() => setModal('alteracao_solicitada')}>

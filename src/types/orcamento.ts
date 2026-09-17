@@ -16,6 +16,7 @@ export const STATUS_ORCAMENTO = [
   'expirado',
   'revisado',
   'convertido',
+  'aprovado_parcial',
 ] as const
 
 export type StatusOrcamento = (typeof STATUS_ORCAMENTO)[number]
@@ -30,6 +31,7 @@ export const STATUS_ORCAMENTO_LABEL: Record<StatusOrcamento, string> = {
   expirado: 'Expirado',
   revisado: 'Revisado',
   convertido: 'Convertido em OS',
+  aprovado_parcial: 'Aprovado em parte',
 }
 
 /**
@@ -46,6 +48,9 @@ export const STATUS_ORCAMENTO_TOM: Record<StatusOrcamento, 'success' | 'warning'
   expirado: 'danger',
   revisado: 'neutral',
   convertido: 'success',
+  // Ambar e nao verde: fechou negocio, mas parte da proposta foi recusada -- o
+  // vendedor precisa olhar o que caiu.
+  aprovado_parcial: 'warning',
 }
 
 /** Status em que o orçamento ainda pode ser editado sem virar revisão. */
@@ -68,6 +73,8 @@ export interface OrcamentoItem {
   valor_unitario: number
   valor_total: number
   ordem: number
+  /** Comeca true. O cliente pode desmarcar no portal antes de aprovar. */
+  aprovado: boolean
 }
 
 export interface OrcamentoAnexo {
@@ -98,6 +105,7 @@ export const EVENTO_ORCAMENTO_LABEL: Record<string, string> = {
   expirado: 'Validade vencida',
   revisado: 'Substituído por uma revisão',
   convertido: 'Convertido em ordem de serviço',
+  aprovado_parcial: 'Aprovado em parte pelo cliente',
 }
 
 export interface OrcamentoEvento {
@@ -127,6 +135,8 @@ export interface Orcamento {
   espessura_max_micron: number
   tipo_pretratamento: Pretratamento
   valor_total: number
+  /** Valor fechado. NULL enquanto nao ha decisao; menor que o total na parcial. */
+  valor_aprovado: number | null
   observacoes_internas: string
   observacoes_cliente: string
   orcamento_versao_anterior_id: string | null
@@ -151,6 +161,7 @@ export interface OrcamentoPublico {
     condicoes_pagamento: string
     prazo_entrega_dias: number
     valor_total: number
+    valor_aprovado: number | null
     observacoes_cliente: string
     cor: string
     espessura: string
@@ -158,6 +169,8 @@ export interface OrcamentoPublico {
   empresa: { nome: string; cnpj: string }
   cliente: { nome: string }
   itens: {
+    id: string
+    aprovado: boolean
     descricao: string
     tipo_acabamento: string
     quantidade: number
@@ -176,4 +189,66 @@ export function totalDosItens(
     (soma, item) => soma + Math.round(item.quantidade * item.valor_unitario * 100) / 100,
     0,
   )
+}
+
+// ---------------------------------------------------------------------------
+// Fase 5 — diff de versões e funil comercial
+// ---------------------------------------------------------------------------
+
+export type SituacaoDiff = 'incluido' | 'removido' | 'alterado' | 'igual'
+
+export const SITUACAO_DIFF_LABEL: Record<SituacaoDiff, string> = {
+  incluido: 'Incluído',
+  removido: 'Removido',
+  alterado: 'Alterado',
+  igual: 'Sem mudança',
+}
+
+export interface LinhaDiff {
+  situacao: SituacaoDiff
+  descricao: string
+  quantidade_antes: number | null
+  quantidade_depois: number | null
+  valor_antes: number | null
+  valor_depois: number | null
+}
+
+export interface LinhaFunil {
+  tenant_id: string
+  mes: string
+  vendedor_id: string
+  propostos: number
+  ganhos: number
+  perdidos: number
+  expirados: number
+  em_aberto: number
+  valor_proposto: number
+  valor_fechado: number
+  /** Percentual sobre o que JÁ FOI DECIDIDO — em aberto não entra no denominador. */
+  taxa_aprovacao: number | null
+  dias_ate_decisao: number | null
+}
+
+export interface MotivoRecusa {
+  orcamento_id: string
+  orcamento_numero: number
+  cliente_id: string
+  tipo: 'rejeitado' | 'alteracao_solicitada'
+  autor_nome: string
+  motivo: string
+  created_at: string
+}
+
+/** Item do checklist de devolução, já ligado ao orçamento de origem. */
+export interface LinhaChecklistDevolucao {
+  orcamento_id: string | null
+  orcamento_numero: number | null
+  romaneio_id: string
+  romaneio_numero: number
+  recebimento_item_id: string
+  descricao: string
+  quantidade_recebida: number
+  quantidade_devolvida: number
+  saldo: number
+  houve_avaria: boolean | null
 }
