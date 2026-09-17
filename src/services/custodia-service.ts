@@ -1,4 +1,4 @@
-import { DEVOLUCOES, RECEBIMENTOS } from '@/mocks/custodia-seed'
+import { supabase } from '@/lib/supabase'
 import type {
   RomaneioDevolucao,
   RomaneioRecebimento,
@@ -7,7 +7,7 @@ import type {
 } from '@/types/custodia'
 
 import { clientesStore } from './cadastros-service'
-import { criarStore } from './mock-store'
+import { criarStoreSupabase } from './supabase-store'
 
 /**
  * Serviços de custódia (Fase 2).
@@ -18,15 +18,19 @@ import { criarStore } from './mock-store'
  */
 
 // Mais recente primeiro: a portaria quase sempre quer o último romaneio.
-export const recebimentosStore = criarStore<RomaneioRecebimento>(
-  RECEBIMENTOS,
-  (a, b) => b.numero - a.numero,
-)
+export const recebimentosStore = criarStoreSupabase<RomaneioRecebimento>({
+  tabela: 'romaneios_recebimento',
+  select: '*, itens:romaneio_recebimento_itens(*), fotos:romaneio_fotos(*)',
+  rpcGravar: { nome: 'salvar_recebimento', campoItens: 'itens' },
+  ordenar: (a, b) => b.numero - a.numero,
+})
 
-export const devolucoesStore = criarStore<RomaneioDevolucao>(
-  DEVOLUCOES,
-  (a, b) => b.numero - a.numero,
-)
+export const devolucoesStore = criarStoreSupabase<RomaneioDevolucao>({
+  tabela: 'romaneios_devolucao',
+  select: '*, itens:romaneio_devolucao_itens(*), fotos:romaneio_fotos(*)',
+  rpcGravar: { nome: 'salvar_devolucao', campoItens: 'itens' },
+  ordenar: (a, b) => b.numero - a.numero,
+})
 
 /**
  * Sequencial por tenant. No Postgres isto vira uma função que faz
@@ -157,29 +161,16 @@ export async function consultaPublicaRomaneio(
   tipo: 'recebimento' | 'devolucao',
   id: string,
 ): Promise<RomaneioPublico | null> {
-  if (tipo === 'recebimento') {
-    const romaneio = RECEBIMENTOS.find((item) => item.id === id)
+  const { data, error } = await supabase.rpc('consultar_romaneio_publico', {
+    p_tipo: tipo,
+    p_romaneio_id: id,
+  })
 
-    if (!romaneio) return null
+  if (error) return null
 
-    return {
-      numero: romaneio.numero,
-      data_hora: romaneio.data_hora,
-      total_itens: romaneio.itens.length,
-      total_unidades: romaneio.itens.reduce((soma, item) => soma + item.quantidade, 0),
-    }
-  }
+  const linha = Array.isArray(data) ? data.at(0) : data
 
-  const devolucao = DEVOLUCOES.find((item) => item.id === id)
-
-  if (!devolucao) return null
-
-  return {
-    numero: devolucao.numero,
-    data_hora: devolucao.data_hora,
-    total_itens: devolucao.itens.length,
-    total_unidades: devolucao.itens.reduce((soma, item) => soma + item.quantidade, 0),
-  }
+  return (linha as RomaneioPublico | undefined) ?? null
 }
 
 /**

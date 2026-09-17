@@ -1,19 +1,18 @@
-import { NAO_CONFORMIDADES, QUALIDADE_REGISTROS } from '@/mocks/estoque-seed'
 import type { NaoConformidade, QualidadeRegistro } from '@/types/qualidade'
 
 import { clientesStore } from './cadastros-service'
-import { criarStore } from './mock-store'
+import { criarStoreSupabase } from './supabase-store'
 import { ordensStore } from './producao-service'
 
-export const qualidadeRegistrosStore = criarStore<QualidadeRegistro>(
-  QUALIDADE_REGISTROS,
-  (a, b) => b.created_at.localeCompare(a.created_at),
-)
+export const qualidadeRegistrosStore = criarStoreSupabase<QualidadeRegistro>({
+  tabela: 'qualidade_registros',
+  ordenar: (a, b) => b.created_at.localeCompare(a.created_at),
+})
 
-export const naoConformidadesStore = criarStore<NaoConformidade>(
-  NAO_CONFORMIDADES,
-  (a, b) => b.created_at.localeCompare(a.created_at),
-)
+export const naoConformidadesStore = criarStoreSupabase<NaoConformidade>({
+  tabela: 'nao_conformidades',
+  ordenar: (a, b) => b.created_at.localeCompare(a.created_at),
+})
 
 export interface TaxaRetrabalho {
   /** OS que chegaram à cabine no período. */

@@ -1,10 +1,3 @@
-import {
-  CLIENTES,
-  CORES,
-  INSUMOS,
-  TABELAS_PRECO,
-  TRANSPORTADORAS,
-} from '@/mocks/cadastros-seed'
 import type {
   Cliente,
   Cor,
@@ -13,18 +6,14 @@ import type {
   Transportadora,
 } from '@/types/cadastros'
 
-import { criarStore } from './mock-store'
+import { criarStoreSupabase } from './supabase-store'
 
 /**
  * Serviços do módulo de Cadastros.
  *
- * Ao conectar o Supabase, cada `criarStore` vira um módulo com as consultas
- * equivalentes. As assinaturas (`listar(tenantId)`, `criar(tenantId, valores)`,
- * ...) foram desenhadas para não mudar nessa troca.
- *
- * Observação sobre tabelas de preço: aqui os itens vivem aninhados no objeto; no
- * Postgres serão a tabela `tabela_preco_itens`, gravada em transação junto com a
- * tabela pai.
+ * Cada store é uma tabela do schema `appintura2` sob RLS. As assinaturas
+ * (`listar(tenantId)`, `criar(tenantId, valores)`, ...) são as mesmas do mock
+ * que existia antes — foi por isso que a troca não mexeu na lógica abaixo.
  */
 
 export class RegraDeNegocioError extends Error {}
@@ -34,26 +23,34 @@ function compararTexto(a: string, b: string): number {
   return a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
 }
 
-export const clientesStore = criarStore<Cliente>(CLIENTES, (a, b) =>
-  compararTexto(a.razao_social, b.razao_social),
-)
+export const clientesStore = criarStoreSupabase<Cliente>({
+  tabela: 'clientes',
+  ordenar: (a, b) => compararTexto(a.razao_social, b.razao_social),
+})
 
-export const tabelasPrecoStore = criarStore<TabelaPreco>(TABELAS_PRECO, (a, b) =>
-  compararTexto(a.nome, b.nome),
-)
+// Agregado: os itens vivem em `tabela_preco_itens` e são gravados pela RPC,
+// na mesma transação do pai.
+export const tabelasPrecoStore = criarStoreSupabase<TabelaPreco>({
+  tabela: 'tabelas_preco',
+  select: '*, itens:tabela_preco_itens(*)',
+  rpcGravar: { nome: 'salvar_tabela_preco', campoItens: 'itens' },
+  ordenar: (a, b) => compararTexto(a.nome, b.nome),
+})
 
-export const coresStore = criarStore<Cor>(CORES, (a, b) =>
-  compararTexto(a.codigo_ral, b.codigo_ral),
-)
+export const coresStore = criarStoreSupabase<Cor>({
+  tabela: 'cores',
+  ordenar: (a, b) => compararTexto(a.codigo_ral, b.codigo_ral),
+})
 
-export const insumosStore = criarStore<InsumoQuimico>(INSUMOS, (a, b) =>
-  compararTexto(a.nome, b.nome),
-)
+export const insumosStore = criarStoreSupabase<InsumoQuimico>({
+  tabela: 'insumos_quimicos',
+  ordenar: (a, b) => compararTexto(a.nome, b.nome),
+})
 
-export const transportadorasStore = criarStore<Transportadora>(
-  TRANSPORTADORAS,
-  (a, b) => compararTexto(a.nome, b.nome),
-)
+export const transportadorasStore = criarStoreSupabase<Transportadora>({
+  tabela: 'transportadoras',
+  ordenar: (a, b) => compararTexto(a.nome, b.nome),
+})
 
 /**
  * Impede apagar tabela de preço vinculada a cliente — no banco isso vira

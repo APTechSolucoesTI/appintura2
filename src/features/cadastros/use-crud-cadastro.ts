@@ -4,14 +4,14 @@ import { toast } from 'sonner'
 
 import { useTenant } from '@/features/tenant/tenant-context'
 import { normalizar } from '@/lib/texto'
-import type { MockStore, RegistroTenant } from '@/services/mock-store'
+import type { RegistroTenant, Store } from '@/services/store'
 
 export type ValoresForm<T extends RegistroTenant> = Omit<T, keyof RegistroTenant>
 
 interface UseCrudOptions<T extends RegistroTenant> {
   /** Prefixo da queryKey, ex.: 'clientes'. */
   chave: string
-  store: MockStore<T>
+  store: Store<T>
   /** Recebe o termo já normalizado (minúsculo, sem acento). */
   filtrar: (item: T, termo: string) => boolean
   /** Nome do registro para toasts e para o diálogo de exclusão. */

@@ -7,7 +7,7 @@ import type { ConfiguracoesTenant } from './configuracoes-service'
 import { calcularSaldoCustodia, devolucoesStore } from './custodia-service'
 import { posicaoEstoque } from './estoque-service'
 import { contasReceberStore } from './financeiro-service'
-import { criarStore } from './mock-store'
+import { criarStoreSupabase } from './supabase-store'
 import { ordensStore } from './producao-service'
 
 /**
@@ -20,10 +20,10 @@ import { ordensStore } from './producao-service'
  * único de saída para WhatsApp/APChat.
  */
 
-export const notificacoesStore = criarStore<Notificacao>(
-  [],
-  (a, b) => b.created_at.localeCompare(a.created_at),
-)
+export const notificacoesStore = criarStoreSupabase<Notificacao>({
+  tabela: 'notificacoes',
+  ordenar: (a, b) => b.created_at.localeCompare(a.created_at),
+})
 
 /** Dias de antecedência do aviso de vencimento de título. */
 const DIAS_AVISO_VENCIMENTO = 5

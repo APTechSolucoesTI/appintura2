@@ -1,4 +1,3 @@
-import { CENTROS_CUSTO, CONTAS_PAGAR, CONTAS_RECEBER } from '@/mocks/financeiro-seed'
 import { parseData } from '@/lib/format'
 import type {
   CanalCobranca,
@@ -16,19 +15,26 @@ import {
 } from '@/types/financeiro'
 
 import { clientesStore } from './cadastros-service'
-import { criarStore } from './mock-store'
+import { criarStoreSupabase } from './supabase-store'
 
-export const centrosCustoStore = criarStore<CentroCusto>(CENTROS_CUSTO, (a, b) =>
-  a.nome.localeCompare(b.nome, 'pt-BR'),
-)
+export const centrosCustoStore = criarStoreSupabase<CentroCusto>({
+  tabela: 'centros_custo',
+  ordenar: (a, b) => a.nome.localeCompare(b.nome, 'pt-BR'),
+})
 
-export const contasReceberStore = criarStore<ContaReceber>(CONTAS_RECEBER, (a, b) =>
-  a.vencimento.localeCompare(b.vencimento),
-)
+// Agregado de leitura: pagamentos e histórico de cobrança vêm aninhados, mas a
+// gravação deles tem tela e regra próprias (baixa, régua) — por isso sem RPC.
+export const contasReceberStore = criarStoreSupabase<ContaReceber>({
+  tabela: 'contas_receber',
+  select:
+    '*, pagamentos:contas_receber_pagamentos(*), cobrancas:contas_receber_cobranca_historico(*)',
+  ordenar: (a, b) => a.vencimento.localeCompare(b.vencimento),
+})
 
-export const contasPagarStore = criarStore<ContaPagar>(CONTAS_PAGAR, (a, b) =>
-  a.vencimento.localeCompare(b.vencimento),
-)
+export const contasPagarStore = criarStoreSupabase<ContaPagar>({
+  tabela: 'contas_pagar',
+  ordenar: (a, b) => a.vencimento.localeCompare(b.vencimento),
+})
 
 export class FinanceiroError extends Error {}
 

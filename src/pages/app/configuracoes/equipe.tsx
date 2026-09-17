@@ -38,6 +38,10 @@ import {
 import { ROLE_DESCRICAO, ROLE_LABEL, ROLES, type VinculoStatus } from '@/types/domain'
 
 const conviteSchema = z.object({
+  // O nome é obrigatório porque a pessoa é criada aqui, não no aceite do
+  // convite: ela precisa aparecer com nome na lista da equipe e como
+  // responsável em romaneio e apontamento antes mesmo do primeiro login.
+  nome: z.string().trim().min(2, 'Informe o nome de quem você quer convidar.'),
   email: z
     .string()
     .min(1, 'Informe o e-mail de quem você quer convidar.')
@@ -65,14 +69,14 @@ export function EquipePage() {
     formState: { errors },
   } = useForm<ConviteForm>({
     resolver: zodResolver(conviteSchema),
-    defaultValues: { email: '', role: 'operador_pintura' },
+    defaultValues: { nome: '', email: '', role: 'operador_pintura' },
   })
 
   const roleSelecionada = useWatch({ control, name: 'role' })
 
   const convite = useMutation({
     mutationFn: (valores: ConviteForm) =>
-      convidarMembro(tenantAtivo.id, valores.email, valores.role),
+      convidarMembro(tenantAtivo.id, valores.email, valores.role, valores.nome),
     onSuccess: async (membro) => {
       await queryClient.invalidateQueries({
         queryKey: ['equipe', 'membros', tenantAtivo.id],
@@ -121,6 +125,23 @@ export function EquipePage() {
                   </AlertDescription>
                 </Alert>
               )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="convite-nome">Nome</Label>
+                <Input
+                  id="convite-nome"
+                  autoComplete="off"
+                  placeholder="Nome de quem vai usar"
+                  aria-invalid={Boolean(errors.nome)}
+                  aria-describedby={errors.nome ? 'convite-nome-erro' : undefined}
+                  {...register('nome')}
+                />
+                {errors.nome && (
+                  <p id="convite-nome-erro" className="text-xs text-destructive">
+                    {errors.nome.message}
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="convite-email">E-mail</Label>

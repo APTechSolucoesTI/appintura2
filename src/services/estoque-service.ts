@@ -1,4 +1,3 @@
-import { MOVIMENTACOES } from '@/mocks/estoque-seed'
 import { avaliarAlerta, type AlertaEstoque } from '@/types/cadastros'
 import type {
   EstoqueMovimentacao,
@@ -9,7 +8,7 @@ import type {
 import { consumoEstimadoKg, type OrdemServico } from '@/types/producao'
 
 import { coresStore, insumosStore } from './cadastros-service'
-import { criarStore } from './mock-store'
+import { criarStoreSupabase } from './supabase-store'
 
 /**
  * Serviços de estoque (Fase 4).
@@ -20,10 +19,10 @@ import { criarStore } from './mock-store'
  * saldo, ou mexer no saldo sem deixar rastro.
  */
 
-export const movimentacoesStore = criarStore<EstoqueMovimentacao>(
-  MOVIMENTACOES,
-  (a, b) => b.created_at.localeCompare(a.created_at),
-)
+export const movimentacoesStore = criarStoreSupabase<EstoqueMovimentacao>({
+  tabela: 'estoque_movimentacoes',
+  ordenar: (a, b) => b.created_at.localeCompare(a.created_at),
+})
 
 export class EstoqueError extends Error {}
 

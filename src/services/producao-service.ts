@@ -1,8 +1,8 @@
-import { ORDENS_SERVICO } from '@/mocks/producao-seed'
-import type { OrdemServico, OsStatusHistorico, StatusOs } from '@/types/producao'
+import { supabase } from '@/lib/supabase'
+import type { OrdemServico, StatusOs } from '@/types/producao'
 
 import { baixarTintaDaOs } from './estoque-service'
-import { criarStore } from './mock-store'
+import { criarStoreSupabase } from './supabase-store'
 
 /**
  * Serviços de produção (Fase 3).
@@ -12,10 +12,12 @@ import { criarStore } from './mock-store'
  * mudar o status por fora e deixar a trilha com buraco.
  */
 
-export const ordensStore = criarStore<OrdemServico>(
-  ORDENS_SERVICO,
-  (a, b) => b.numero - a.numero,
-)
+export const ordensStore = criarStoreSupabase<OrdemServico>({
+  tabela: 'ordens_servico',
+  select: '*, itens:os_itens(*), historico:os_status_historico(*)',
+  rpcGravar: { nome: 'salvar_ordem_servico', campoItens: 'itens' },
+  ordenar: (a, b) => b.numero - a.numero,
+})
 
 export async function proximoNumeroOs(tenantId: string): Promise<number> {
   const existentes = await ordensStore.listar(tenantId)
@@ -29,6 +31,13 @@ export interface MoverParams {
   tenantId: string
   osId: string
   novoStatus: StatusOs
+  /**
+   * Quem está movendo. NÃO vai para o histórico — lá o responsável é resolvido
+   * no banco, por `usuario_atual()`, que lê o JWT. É o único jeito de a trilha
+   * não depender do que o cliente afirma ser.
+   *
+   * Continua aqui porque a baixa de tinta registra quem consumiu.
+   */
   responsavelId: string
   responsavelNome: string
   observacao?: string
@@ -40,7 +49,6 @@ export async function moverStatus({
   novoStatus,
   responsavelId,
   responsavelNome,
-  observacao = '',
 }: MoverParams): Promise<OrdemServico> {
   const os = await ordensStore.obter(tenantId, osId)
 
@@ -48,20 +56,14 @@ export async function moverStatus({
     throw new TransicaoInvalidaError('A ordem já está nesta etapa.')
   }
 
-  const registro: OsStatusHistorico = {
-    id: crypto.randomUUID(),
-    os_id: osId,
-    de: os.status,
-    para: novoStatus,
-    responsavel_id: responsavelId,
-    responsavel_nome: responsavelNome,
-    observacao,
-    created_at: new Date().toISOString(),
-  }
-
+  // O histórico NÃO é montado aqui: quem grava é o trigger da Fase 3, em
+  // `ordens_servico`. Mandar a lista junto duplicaria a trilha, e montá-la no
+  // cliente deixaria de fora toda transição feita por outro caminho.
+  //
+  // Sem a chave `itens`, a RPC preserva os itens da OS — é o que permite mover
+  // o card sem tocar na carga.
   const atualizada = await ordensStore.atualizar(tenantId, osId, {
     status: novoStatus,
-    historico: [...os.historico, registro],
   })
 
   // Entrar na cabine consome tinta. A baixa é idempotente, então mover o card
@@ -93,15 +95,28 @@ export async function ordensDoCliente(
   return ordens.filter((os) => os.cliente_id === clienteId)
 }
 
+/** O que o QR code expõe sem login. Deliberadamente sem cliente, preço ou custo. */
+export interface ConsultaPublicaOs {
+  numero: number
+  status: StatusOs
+  previsao_entrega: string
+  atualizado_em: string
+}
+
 /**
  * Consulta pública pelo QR code: acha a OS sem saber o tenant.
  *
- * No Supabase isto NÃO pode ser um select direto na tabela — vira uma Edge
- * Function ou uma view restrita que devolve só o que pode ser exposto sem
- * login (número, status, previsão), nunca preço, custo ou dados do cliente.
+ * NÃO é um select na tabela: é uma função SECURITY DEFINER que devolve só
+ * número, status e previsão. O papel `anon` não tem grant em `ordens_servico`,
+ * e é isso que garante que a etiqueta colada na peça — que circula no pátio e
+ * no caminhão — não vire uma porta para a carteira de clientes.
  */
-export async function consultaPublica(osId: string): Promise<OrdemServico | null> {
-  const todas = ORDENS_SERVICO.filter((os) => os.id === osId)
+export async function consultaPublica(osId: string): Promise<ConsultaPublicaOs | null> {
+  const { data, error } = await supabase.rpc('consultar_os_publica', { p_os_id: osId })
 
-  return todas.at(0) ?? null
+  if (error) return null
+
+  const linha = Array.isArray(data) ? data.at(0) : data
+
+  return (linha as ConsultaPublicaOs | undefined) ?? null
 }

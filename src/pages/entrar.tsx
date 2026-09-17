@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/features/auth/auth-context'
 import { AuthError } from '@/services/auth-service'
-import { DEMO_PASSWORD, USERS } from '@/mocks/seed'
 
 const loginSchema = z.object({
   email: z
@@ -130,7 +129,6 @@ export function EntrarPage() {
             </Button>
           </form>
 
-          <CredenciaisDemo />
 
           <p className="mt-6 text-center text-sm text-brand-muted">
             <Link to="/" className="font-medium text-brand-medium hover:underline">
@@ -168,31 +166,3 @@ function PainelMarca() {
   )
 }
 
-/**
- * Bloco temporário da Fase 0: enquanto o Supabase Auth não está conectado, o login
- * é um mock em memória. REMOVER junto com `src/mocks/seed.ts` ao plugar o backend.
- */
-function CredenciaisDemo() {
-  return (
-    <div className="mt-6 rounded-card border border-dashed border-border bg-card p-4">
-      <p className="font-mono text-[0.65rem] tracking-[0.14em] text-brand-medium uppercase">
-        Ambiente de demonstração
-      </p>
-
-      <p className="mt-2 text-xs text-brand-muted">
-        Senha para qualquer usuário:{' '}
-        <code className="rounded-field bg-muted px-1.5 py-0.5 font-mono text-brand-dark">
-          {DEMO_PASSWORD}
-        </code>
-      </p>
-
-      <ul className="mt-2 space-y-1">
-        {USERS.map((user) => (
-          <li key={user.id} className="font-mono text-xs text-brand-muted">
-            {user.email}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
