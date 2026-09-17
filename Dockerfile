@@ -48,12 +48,12 @@ RUN rm -rf /usr/share/nginx/html/*
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 3000
 
 # 127.0.0.1 e NÃO localhost: dentro da imagem, `localhost` resolve primeiro para
 # `::1`, e o nginx aqui escuta só em IPv4 — o healthcheck falharia sempre, e no
 # Swarm isso derruba e recria a task num loop infinito.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://127.0.0.1/health || exit 1
+  CMD wget --quiet --tries=1 --spider http://127.0.0.1:3000/health || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
