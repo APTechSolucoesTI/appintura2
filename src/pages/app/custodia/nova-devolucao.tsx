@@ -29,7 +29,7 @@ import { mascararDocumento, apenasDigitos, validarCpfCnpj } from '@/lib/document
 import { clientesStore, transportadorasStore } from '@/services/cadastros-service'
 import {
   calcularSaldoCustodia,
-  devolucoesStore,
+  criarDevolucaoComProvas,
   proximoNumeroDevolucao,
   recebimentosStore,
 } from '@/services/custodia-service'
@@ -240,7 +240,7 @@ export function NovaDevolucaoPage() {
           ? 'retirado'
           : 'retirado_parcial'
 
-      return devolucoesStore.criar(tenantAtivo.id, {
+      return criarDevolucaoComProvas(tenantAtivo.id, {
         numero,
         cliente_id: clienteId,
         recebimento_ids: recebimentoIds,

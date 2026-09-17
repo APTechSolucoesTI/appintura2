@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { subirImagem, subirImagens, UploadError } from '@/lib/storage'
 import type {
   RomaneioDevolucao,
   RomaneioRecebimento,
@@ -188,4 +189,138 @@ export async function itensEmCustodia(
     .filter(
       (item) => recebimentoIds.includes(item.recebimento_id) && item.saldo > 0,
     )
+}
+
+// ---------------------------------------------------------------------------
+// Provas de custódia: assinatura e fotos
+//
+// As telas capturam em canvas e entregam data URL; o banco guarda CAMINHO no
+// bucket. A ponte é aqui, e não no store genérico, porque o fluxo é
+// necessariamente em etapas: o caminho do arquivo inclui o id do romaneio, que
+// só existe depois do insert.
+//
+// Consequência assumida: upload NÃO é atômico com o romaneio. Se a rede cair no
+// meio, sobra romaneio sem foto — e é por isso que a falha é propagada em vez
+// de engolida, para a portaria saber que precisa reanexar. O inverso (perder o
+// romaneio por causa de uma foto) seria pior: a carga já está no pátio.
+// ---------------------------------------------------------------------------
+
+interface ItemComFotos {
+  fotos?: string[]
+}
+
+/** Sobe assinatura e fotos, grava os vínculos e devolve o romaneio já relido. */
+async function anexarProvas(
+  tenantId: string,
+  tabela: 'romaneios_recebimento' | 'romaneios_devolucao',
+  colunaItem: 'recebimento_item_id' | 'devolucao_item_id',
+  romaneioId: string,
+  itensSalvos: { id: string }[],
+  itensEnviados: ItemComFotos[],
+  assinaturaDataUrl: string | null,
+): Promise<void> {
+  if (assinaturaDataUrl) {
+    const caminho = await subirImagem(tenantId, romaneioId, assinaturaDataUrl, 'assinatura')
+    const { error } = await supabase
+      .from(tabela)
+      .update({ assinatura_path: caminho })
+      .eq('id', romaneioId)
+      .eq('tenant_id', tenantId)
+
+    if (error) throw new UploadError('Romaneio salvo, mas a assinatura não foi anexada.')
+  }
+
+  // Os itens voltam do banco na mesma ordem em que foram enviados (a RPC
+  // insere com `jsonb_array_elements`, que preserva a ordem do array).
+  const linhas: {
+    tenant_id: string
+    storage_path: string
+    nome: string
+    capturada_em: string
+    recebimento_item_id?: string
+    devolucao_item_id?: string
+  }[] = []
+
+  for (const [indice, enviado] of itensEnviados.entries()) {
+    const salvo = itensSalvos[indice]
+
+    if (!salvo || !enviado.fotos?.length) continue
+
+    const caminhos = await subirImagens(tenantId, romaneioId, enviado.fotos, `item-${indice + 1}`)
+
+    for (const [n, caminho] of caminhos.entries()) {
+      linhas.push({
+        tenant_id: tenantId,
+        storage_path: caminho,
+        nome: `Item ${indice + 1} — foto ${n + 1}`,
+        capturada_em: new Date().toISOString(),
+        [colunaItem]: salvo.id,
+      })
+    }
+  }
+
+  if (linhas.length === 0) return
+
+  const { error } = await supabase.from('romaneio_fotos').insert(linhas)
+
+  if (error) throw new UploadError('Romaneio salvo, mas as fotos não foram anexadas.')
+}
+
+/**
+ * Cria o recebimento e anexa as provas.
+ *
+ * Use esta em vez de `recebimentosStore.criar` direto: o store sozinho grava o
+ * romaneio e os itens, mas descarta assinatura e fotos, porque elas não são
+ * colunas — são arquivos.
+ */
+export async function criarRecebimentoComProvas(
+  tenantId: string,
+  valores: Record<string, unknown>,
+): Promise<RomaneioRecebimento> {
+  const { assinatura_url: assinatura, ...resto } = valores as {
+    assinatura_url?: string | null
+    itens?: ItemComFotos[]
+  }
+
+  const salvo = await recebimentosStore.criar(
+    tenantId,
+    resto as never,
+  )
+
+  await anexarProvas(
+    tenantId,
+    'romaneios_recebimento',
+    'recebimento_item_id',
+    salvo.id,
+    salvo.itens,
+    (resto.itens ?? []) as ItemComFotos[],
+    assinatura ?? null,
+  )
+
+  return await recebimentosStore.obter(tenantId, salvo.id)
+}
+
+/** Idem para a devolução. */
+export async function criarDevolucaoComProvas(
+  tenantId: string,
+  valores: Record<string, unknown>,
+): Promise<RomaneioDevolucao> {
+  const { assinatura_url: assinatura, ...resto } = valores as {
+    assinatura_url?: string | null
+    itens?: ItemComFotos[]
+  }
+
+  const salvo = await devolucoesStore.criar(tenantId, resto as never)
+
+  await anexarProvas(
+    tenantId,
+    'romaneios_devolucao',
+    'devolucao_item_id',
+    salvo.id,
+    salvo.itens,
+    (resto.itens ?? []) as ItemComFotos[],
+    assinatura ?? null,
+  )
+
+  return await devolucoesStore.obter(tenantId, salvo.id)
 }

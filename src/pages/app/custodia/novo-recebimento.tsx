@@ -29,7 +29,10 @@ import { useAuth } from '@/features/auth/auth-context'
 import { useTenant } from '@/features/tenant/tenant-context'
 import { deDatetimeLocal, paraDatetimeLocal } from '@/lib/format'
 import { clientesStore, transportadorasStore } from '@/services/cadastros-service'
-import { proximoNumeroRecebimento, recebimentosStore } from '@/services/custodia-service'
+import {
+  criarRecebimentoComProvas,
+  proximoNumeroRecebimento,
+} from '@/services/custodia-service'
 import {
   CONDICAO_LABEL,
   CONDICOES,
@@ -163,7 +166,7 @@ export function NovoRecebimentoPage() {
       const numero = await proximoNumeroRecebimento(tenantAtivo.id)
       const romaneioId = crypto.randomUUID()
 
-      return recebimentosStore.criar(tenantAtivo.id, {
+      return criarRecebimentoComProvas(tenantAtivo.id, {
         numero,
         cliente_id: dados.cliente_id,
         transportadora_id: dados.transportadora_id || null,
