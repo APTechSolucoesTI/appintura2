@@ -126,9 +126,18 @@ export async function verificarToken(
   }
 }
 
-/** Lê o segredo do ambiente, falhando alto se não estiver configurado. */
+/**
+ * Lê o segredo do ambiente, falhando alto se não estiver configurado.
+ *
+ * `JWT_SECRET` já vem preenchido no edge-runtime do Supabase self-hosted — é o
+ * mesmo segredo que o PostgREST usa para validar a assinatura, então não há
+ * nada a configurar no servidor. As outras duas chaves existem para ambientes
+ * onde ele não é injetado (Supabase Cloud, `supabase start` local).
+ */
 export function segredoJwt(): string {
-  const segredo = Deno.env.get('APPINTURA_JWT_SECRET') ?? Deno.env.get('SUPABASE_JWT_SECRET')
+  const segredo = Deno.env.get('JWT_SECRET') ??
+    Deno.env.get('APPINTURA_JWT_SECRET') ??
+    Deno.env.get('SUPABASE_JWT_SECRET')
 
   if (!segredo) {
     // Sem segredo não há login possível; degradar silenciosamente aqui viraria

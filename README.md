@@ -240,11 +240,8 @@ A função `appintura2.autenticar()` é revogada de `anon`/`authenticated` e só
 Edge Function (service_role) a chama: exposta na API, ela seria um oráculo de
 força bruta de senha.
 
-Variável necessária nas Edge Functions:
-
-```
-APPINTURA_JWT_SECRET=<mesmo JWT secret do Supabase>
-```
+Nada a configurar no servidor: o edge-runtime do Supabase self-hosted já injeta
+`JWT_SECRET`, que é o mesmo segredo com que o PostgREST valida a assinatura.
 
 ## Design system
 
