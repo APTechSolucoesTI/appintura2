@@ -7,7 +7,7 @@
 -- NÃO rodar em produção.
 -- ============================================================================
 
-insert into public.tenants (id, razao_social, nome_fantasia, cnpj, plano, created_at)
+insert into appintura2.tenants (id, razao_social, nome_fantasia, cnpj, plano, created_at)
 values
   (
     '11111111-1111-4111-8111-111111111111',
@@ -28,26 +28,42 @@ values
 on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
--- user_roles depende de linhas reais em auth.users, que não são criadas por SQL
--- puro. Crie os usuários primeiro (Studio local, ou auth.admin.createUser via
--- script) e então rode o bloco abaixo, que resolve o user_id pelo e-mail.
+-- Usuários de desenvolvimento.
 --
--- Usuários esperados (senha de desenvolvimento: appintura):
+-- Com identidade própria (`appintura2.usuarios`) isto virou SQL puro — não
+-- depende mais de criar ninguém no GoTrue antes.
+--
+-- Senha dos três: appintura2026 (hash bcrypt gerado na hora por criar_usuario).
 --   marina@metalcor.com.br   -> admin na Matriz E na Filial Sul (multi-CNPJ)
 --   rogerio@metalcor.com.br  -> gestor_producao na Matriz
 --   cleiton@metalcor.com.br  -> portaria na Matriz
 -- ----------------------------------------------------------------------------
 
-insert into public.user_roles (user_id, tenant_id, role, status)
-select u.id, v.tenant_id, v.role, 'ativo'::public.vinculo_status
+insert into appintura2.usuarios (id, email, senha_hash, nome, telefone)
+select
+  v.id,
+  v.email,
+  extensions.crypt('appintura2026', extensions.gen_salt('bf', 10)),
+  v.nome,
+  v.telefone
 from (
   values
-    ('marina@metalcor.com.br',  '11111111-1111-4111-8111-111111111111'::uuid, 'admin'::public.app_role),
-    ('marina@metalcor.com.br',  '22222222-2222-4222-8222-222222222222'::uuid, 'admin'::public.app_role),
-    ('rogerio@metalcor.com.br', '11111111-1111-4111-8111-111111111111'::uuid, 'gestor_producao'::public.app_role),
-    ('cleiton@metalcor.com.br', '11111111-1111-4111-8111-111111111111'::uuid, 'portaria'::public.app_role)
+    ('aaaaaaaa-0000-4000-8000-000000000001'::uuid, 'marina@metalcor.com.br',  'Marina Prates Nunes', '11987650001'),
+    ('aaaaaaaa-0000-4000-8000-000000000002'::uuid, 'rogerio@metalcor.com.br', 'Rogério Bastos',     '11987650002'),
+    ('aaaaaaaa-0000-4000-8000-000000000003'::uuid, 'cleiton@metalcor.com.br', 'Cleiton Araújo',     '11987650003')
+) as v (id, email, nome, telefone)
+on conflict (id) do nothing;
+
+insert into appintura2.user_roles (user_id, tenant_id, role, status)
+select u.id, v.tenant_id, v.role, 'ativo'::appintura2.vinculo_status
+from (
+  values
+    ('marina@metalcor.com.br',  '11111111-1111-4111-8111-111111111111'::uuid, 'admin'::appintura2.app_role),
+    ('marina@metalcor.com.br',  '22222222-2222-4222-8222-222222222222'::uuid, 'admin'::appintura2.app_role),
+    ('rogerio@metalcor.com.br', '11111111-1111-4111-8111-111111111111'::uuid, 'gestor_producao'::appintura2.app_role),
+    ('cleiton@metalcor.com.br', '11111111-1111-4111-8111-111111111111'::uuid, 'portaria'::appintura2.app_role)
 ) as v (email, tenant_id, role)
-join auth.users u on u.email = v.email
+join appintura2.usuarios u on u.email = v.email
 on conflict (user_id, tenant_id) do nothing;
 
 -- ============================================================================
@@ -55,13 +71,13 @@ on conflict (user_id, tenant_id) do nothing;
 -- Só a Matriz recebe cadastro; a Filial Sul fica vazia de propósito.
 -- ============================================================================
 
-insert into public.tabelas_preco (id, tenant_id, nome, ativa, created_at)
+insert into appintura2.tabelas_preco (id, tenant_id, nome, ativa, created_at)
 values
   ('cccccccc-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'Tabela padrão 2026', true, '2026-01-08T12:00:00Z'),
   ('cccccccc-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', 'Contrato Vale do Aço', true, '2026-03-02T12:00:00Z')
 on conflict (id) do nothing;
 
-insert into public.tabela_preco_itens (id, tabela_preco_id, tipo_acabamento, unidade, valor)
+insert into appintura2.tabela_preco_itens (id, tabela_preco_id, tipo_acabamento, unidade, valor)
 values
   ('dddddddd-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000001', 'Pintura lisa poliéster', 'm2', 48.50),
   ('dddddddd-0000-4000-8000-000000000002', 'cccccccc-0000-4000-8000-000000000001', 'Pintura texturizada', 'm2', 56.00),
@@ -71,7 +87,7 @@ values
   ('dddddddd-0000-4000-8000-000000000006', 'cccccccc-0000-4000-8000-000000000002', 'Portão de correr até 3 m', 'peca', 220.00)
 on conflict (id) do nothing;
 
-insert into public.clientes (
+insert into appintura2.clientes (
   id, tenant_id, razao_social, cnpj_cpf, contato_nome, contato_telefone, contato_email,
   cep, logradouro, numero, complemento, bairro, cidade, uf,
   tabela_preco_id, limite_credito, dias_inadimplencia_atual, ativo, created_at
@@ -82,7 +98,7 @@ values
   ('eeeeeeee-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111', 'Belmiro Rodas e Acessórios', '48291077312', 'Belmiro Fontes', '31991260443', 'belmiro.rodas@gmail.com', '30640150', 'Rua Padre Eustáquio', '77', 'Fundos', 'Carlos Prates', 'Belo Horizonte', 'MG', 'cccccccc-0000-4000-8000-000000000001', 8000, 0, true, '2025-07-21T12:00:00Z')
 on conflict (id) do nothing;
 
-insert into public.cores (
+insert into appintura2.cores (
   id, tenant_id, codigo_ral, nome_comercial, fabricante, tipo, textura, brilho,
   rendimento_teorico_g_m2, custo_kg, estoque_atual, estoque_minimo, lote, validade, created_at
 )
@@ -94,7 +110,7 @@ values
   ('ffffffff-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111', 'RAL 3020', 'Vermelho Trânsito', 'Akzo Nobel', 'epoxi', 'lisa', 'brilhante', 98, 36.75, 35, 15, 'L-2608D', '2027-06-18', '2026-06-01T12:00:00Z')
 on conflict (id) do nothing;
 
-insert into public.insumos_quimicos (
+insert into appintura2.insumos_quimicos (
   id, tenant_id, nome, tipo, estoque_atual, estoque_minimo, unidade_medida, validade, fornecedor, created_at
 )
 values
@@ -103,7 +119,7 @@ values
   ('aaaaaaaa-1111-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111', 'Passivador selante PS-10', 'passivador', 40, 20, 'L', '2026-09-25', 'Bautec Químicos', '2026-05-20T12:00:00Z')
 on conflict (id) do nothing;
 
-insert into public.transportadoras (
+insert into appintura2.transportadoras (
   id, tenant_id, nome, cnpj, contato_nome, contato_telefone, contato_email, created_at
 )
 values
@@ -123,11 +139,11 @@ on conflict (id) do nothing;
 -- no final.
 -- ============================================================================
 
-insert into public.configuracoes_tenant (tenant_id, dias_alerta_custodia)
+insert into appintura2.configuracoes_tenant (tenant_id, dias_alerta_custodia)
 values ('11111111-1111-4111-8111-111111111111', 15)
 on conflict (tenant_id) do nothing;
 
-insert into public.romaneios_recebimento (
+insert into appintura2.romaneios_recebimento (
   id, tenant_id, numero, cliente_id, transportadora_id, data_hora,
   documento_numero, documento_serie, conferente_id, status, observacao,
   assinatura_nome, created_at
@@ -140,18 +156,18 @@ from (
   values
     ('a1a1a1a1-0000-4000-8000-000000000001'::uuid, '11111111-1111-4111-8111-111111111111'::uuid, 1,
      'eeeeeeee-0000-4000-8000-000000000001'::uuid, 'bbbbbbbb-1111-4000-8000-000000000001'::uuid,
-     '2026-09-10T08:40:00Z'::timestamptz, '10422', '1', 'recebido_conferido'::public.status_recebimento,
+     '2026-09-10T08:40:00Z'::timestamptz, '10422', '1', 'recebido_conferido'::appintura2.status_recebimento,
      '', 'Jair Peixoto'),
     ('a1a1a1a1-0000-4000-8000-000000000002'::uuid, '11111111-1111-4111-8111-111111111111'::uuid, 2,
      'eeeeeeee-0000-4000-8000-000000000002'::uuid, null::uuid,
-     '2026-08-20T14:15:00Z'::timestamptz, '8891', '2', 'recebido_com_ressalva'::public.status_recebimento,
+     '2026-08-20T14:15:00Z'::timestamptz, '8891', '2', 'recebido_com_ressalva'::appintura2.status_recebimento,
      'Veículo próprio do cliente. Um portão chegou com avaria aparente.', 'Wagner Pimenta')
 ) as v (id, tenant_id, numero, cliente_id, transportadora_id, data_hora,
         documento_numero, documento_serie, status, observacao, assinatura_nome)
-cross join (select id from auth.users where email = 'cleiton@metalcor.com.br') u
+cross join (select id from appintura2.usuarios where email = 'cleiton@metalcor.com.br') u
 on conflict (id) do nothing;
 
-insert into public.romaneio_recebimento_itens (
+insert into appintura2.romaneio_recebimento_itens (
   id, romaneio_id, descricao, quantidade, unidade, peso_kg, condicao_chegada, observacao
 )
 values
@@ -161,7 +177,7 @@ values
   ('b1b1b1b1-0000-4000-8000-000000000004', 'a1a1a1a1-0000-4000-8000-000000000002', 'Grade de proteção 1,2 m x 1,0 m', 24, 'peca', 190, 'integra', '')
 on conflict (id) do nothing;
 
-insert into public.romaneios_devolucao (
+insert into appintura2.romaneios_devolucao (
   id, tenant_id, numero, cliente_id, data_hora, retirado_por_nome,
   retirado_por_documento, transportadora_id, placa, status, responsavel_id, created_at
 )
@@ -175,17 +191,17 @@ select
   '48291077312',
   'bbbbbbbb-1111-4000-8000-000000000001'::uuid,
   'RQK7A21',
-  'retirado_parcial'::public.status_devolucao,
+  'retirado_parcial'::appintura2.status_devolucao,
   u.id,
   '2026-09-12T16:30:00Z'::timestamptz
-from (select id from auth.users where email = 'cleiton@metalcor.com.br') u
+from (select id from appintura2.usuarios where email = 'cleiton@metalcor.com.br') u
 on conflict (id) do nothing;
 
-insert into public.romaneio_devolucao_recebimentos (devolucao_id, recebimento_id)
+insert into appintura2.romaneio_devolucao_recebimentos (devolucao_id, recebimento_id)
 values ('c1c1c1c1-0000-4000-8000-000000000001', 'a1a1a1a1-0000-4000-8000-000000000001')
 on conflict do nothing;
 
-insert into public.romaneio_devolucao_itens (
+insert into appintura2.romaneio_devolucao_itens (
   id, devolucao_id, recebimento_item_id, quantidade, condicao_saida, justificativa
 )
 values
@@ -195,7 +211,7 @@ on conflict (id) do nothing;
 
 -- Sincroniza o contador para que o próximo romaneio criado pela tela seja o nº 3
 -- (recebimento) e o nº 2 (devolução), e não colida com os números semeados.
-insert into public.tenant_sequencias (tenant_id, tipo, ultimo_numero)
+insert into appintura2.tenant_sequencias (tenant_id, tipo, ultimo_numero)
 values
   ('11111111-1111-4111-8111-111111111111', 'recebimento', 2),
   ('11111111-1111-4111-8111-111111111111', 'devolucao', 1)
@@ -209,7 +225,7 @@ on conflict (tenant_id, tipo) do update set ultimo_numero = excluded.ultimo_nume
 -- frontend.
 -- ============================================================================
 
-insert into public.ordens_servico (
+insert into appintura2.ordens_servico (
   id, tenant_id, numero, cliente_id, romaneio_recebimento_id, data_entrada,
   previsao_entrega, urgencia, status, cor_id, espessura_min_micron,
   espessura_max_micron, tipo_pretratamento, observacao, created_at
@@ -223,7 +239,7 @@ values
   ('aa000001-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111', 6, 'eeeeeeee-0000-4000-8000-000000000001', 'a1a1a1a1-0000-4000-8000-000000000001', '2026-09-10', '2026-09-20', 'alta', 'retrabalho', 'ffffffff-0000-4000-8000-000000000004', 70, 95, 'desengraxe', 'Espessura abaixo do mínimo em 6 peças na primeira inspeção.', '2026-09-10T09:30:00Z')
 on conflict (id) do nothing;
 
-insert into public.os_itens (id, os_id, descricao, quantidade, area_m2)
+insert into appintura2.os_itens (id, os_id, descricao, quantidade, area_m2)
 values
   ('11110001-0000-4000-8000-000000000001', 'aa000001-0000-4000-8000-000000000001', 'Perfil de alumínio 6063 — barra de 3 m', 60, 43.2),
   ('11110001-0000-4000-8000-000000000002', 'aa000001-0000-4000-8000-000000000002', 'Portão de correr 3,5 m x 2,2 m', 4, 61.6),
@@ -233,7 +249,7 @@ values
   ('11110001-0000-4000-8000-000000000006', 'aa000001-0000-4000-8000-000000000006', 'Cantoneira de alumínio 1"', 20, 9.6)
 on conflict (id) do nothing;
 
-insert into public.tenant_sequencias (tenant_id, tipo, ultimo_numero)
+insert into appintura2.tenant_sequencias (tenant_id, tipo, ultimo_numero)
 values ('11111111-1111-4111-8111-111111111111', 'os', 6)
 on conflict (tenant_id, tipo) do update set ultimo_numero = excluded.ultimo_numero;
 
@@ -245,7 +261,7 @@ on conflict (tenant_id, tipo) do update set ultimo_numero = excluded.ultimo_nume
 -- por isso o bloco no fim recalcula `estoque_atual` a partir dos movimentos.
 -- ============================================================================
 
-insert into public.estoque_movimentacoes (
+insert into appintura2.estoque_movimentacoes (
   id, tenant_id, tipo_item, item_id, item_descricao, tipo_movimento,
   quantidade, unidade, os_id, lote, motivo_perda, observacao, responsavel_id, data
 )
@@ -254,7 +270,7 @@ select
   v.quantidade, v.unidade, v.os_id, v.lote, v.motivo_perda, v.observacao, u.id, v.data
 from (
   values
-    ('m0000001-0000-4000-8000-000000000001'::uuid, 'tinta'::public.tipo_item_estoque, 'ffffffff-0000-4000-8000-000000000001'::uuid, 'RAL 9005 Preto Sinal', 'entrada'::public.tipo_movimento_estoque, 75, 'kg', null::uuid, 'L-2609A', null::public.motivo_perda, 'Compra NF 44120 — Sherwin-Williams.', '2026-02-10'::date),
+    ('m0000001-0000-4000-8000-000000000001'::uuid, 'tinta'::appintura2.tipo_item_estoque, 'ffffffff-0000-4000-8000-000000000001'::uuid, 'RAL 9005 Preto Sinal', 'entrada'::appintura2.tipo_movimento_estoque, 75, 'kg', null::uuid, 'L-2609A', null::appintura2.motivo_perda, 'Compra NF 44120 — Sherwin-Williams.', '2026-02-10'::date),
     ('m0000001-0000-4000-8000-000000000002'::uuid, 'tinta', 'ffffffff-0000-4000-8000-000000000003', 'RAL 7016 Cinza Antracite', 'entrada', 80, 'kg', null, 'L-2607B', null, 'Compra NF 44987 — WEG.', '2026-04-18'),
     ('m0000001-0000-4000-8000-000000000003'::uuid, 'tinta', 'ffffffff-0000-4000-8000-000000000003', 'RAL 7016 Cinza Antracite', 'saida', 2.52, 'kg', 'aa000001-0000-4000-8000-000000000004', 'L-2607B', null, 'Baixa automática na entrada em aplicação de pó.', '2026-09-09'),
     ('m0000001-0000-4000-8000-000000000004'::uuid, 'tinta', 'ffffffff-0000-4000-8000-000000000002', 'RAL 9003 Branco Sinal', 'saida', 3.8, 'kg', 'aa000001-0000-4000-8000-000000000005', 'L-2604C', null, 'Baixa automática na entrada em aplicação de pó.', '2026-09-11'),
@@ -265,10 +281,10 @@ from (
     ('m0000001-0000-4000-8000-000000000009'::uuid, 'insumo_quimico', 'aaaaaaaa-1111-4000-8000-000000000002', 'Fosfato de ferro FF-200', 'saida', 15, 'kg', null, 'FF-2605', null, 'Reposição do banho de fosfatização.', '2026-09-05')
 ) as v (id, tipo_item, item_id, item_descricao, tipo_movimento, quantidade, unidade, os_id, lote, motivo_perda, observacao, data)
 cross join lateral (select '11111111-1111-4111-8111-111111111111'::uuid as tenant_id) t
-cross join (select id from auth.users where email = 'marina@metalcor.com.br') u
+cross join (select id from appintura2.usuarios where email = 'marina@metalcor.com.br') u
 on conflict (id) do nothing;
 
-insert into public.qualidade_registros (
+insert into appintura2.qualidade_registros (
   id, tenant_id, os_item_id, espessura_medida_micron, espessura_min_micron,
   espessura_max_micron, teste_aderencia, observacao, responsavel_id, data
 )
@@ -276,29 +292,29 @@ select v.id, '11111111-1111-4111-8111-111111111111'::uuid, v.os_item_id,
        v.medida, v.minimo, v.maximo, v.aderencia, v.observacao, u.id, v.data
 from (
   values
-    ('q0000001-0000-4000-8000-000000000001'::uuid, '11110001-0000-4000-8000-000000000004'::uuid, 84, 70, 100, 'aprovado'::public.resultado_teste, 'Medição em 5 pontos, média 84 µm. Corte em grade classe 0.', '2026-09-12'::date),
+    ('q0000001-0000-4000-8000-000000000001'::uuid, '11110001-0000-4000-8000-000000000004'::uuid, 84, 70, 100, 'aprovado'::appintura2.resultado_teste, 'Medição em 5 pontos, média 84 µm. Corte em grade classe 0.', '2026-09-12'::date),
     ('q0000001-0000-4000-8000-000000000002'::uuid, '11110001-0000-4000-8000-000000000006'::uuid, 52, 70, 95, 'aprovado', '6 de 20 peças abaixo de 60 µm nas faces internas.', '2026-09-12')
 ) as v (id, os_item_id, medida, minimo, maximo, aderencia, observacao, data)
-cross join (select id from auth.users where email = 'marina@metalcor.com.br') u
+cross join (select id from appintura2.usuarios where email = 'marina@metalcor.com.br') u
 on conflict (id) do nothing;
 
-insert into public.nao_conformidades (
+insert into appintura2.nao_conformidades (
   id, tenant_id, os_item_id, tipo, causa, acao_corretiva, responsavel_id, data
 )
 select
   'n0000001-0000-4000-8000-000000000001'::uuid,
   '11111111-1111-4111-8111-111111111111'::uuid,
   '11110001-0000-4000-8000-000000000006'::uuid,
-  'espessura_fora_faixa'::public.tipo_nao_conformidade,
+  'espessura_fora_faixa'::appintura2.tipo_nao_conformidade,
   'Peças penduradas muito próximas no gancho, criando efeito gaiola de Faraday nas faces internas.',
   'Repintar as 20 peças com espaçamento mínimo de 15 cm no transportador e revisar o ajuste de kV da pistola.',
   u.id,
   '2026-09-12'
-from (select id from auth.users where email = 'marina@metalcor.com.br') u
+from (select id from appintura2.usuarios where email = 'marina@metalcor.com.br') u
 on conflict (id) do nothing;
 
 -- Reconcilia o saldo com os movimentos, desfazendo a soma dupla do seed.
-update public.cores c
+update appintura2.cores c
 set estoque_atual = v.saldo
 from (
   values
@@ -310,7 +326,7 @@ from (
 ) as v (id, saldo)
 where c.id = v.id;
 
-update public.insumos_quimicos i
+update appintura2.insumos_quimicos i
 set estoque_atual = v.saldo
 from (
   values
@@ -324,7 +340,7 @@ where i.id = v.id;
 -- Fase 5 — Financeiro (espelha `src/mocks/financeiro-seed.ts`).
 -- ============================================================================
 
-update public.configuracoes_tenant
+update appintura2.configuracoes_tenant
 set multa_percentual = 2,
     juros_mes_percentual = 1,
     custo_energia_gas_m2 = 4.2,
@@ -334,14 +350,14 @@ set multa_percentual = 2,
     despesa_fixa_mensal = 42000
 where tenant_id = '11111111-1111-4111-8111-111111111111';
 
-insert into public.centros_custo (id, tenant_id, nome, tipo, created_at)
+insert into appintura2.centros_custo (id, tenant_id, nome, tipo, created_at)
 values
   ('cc000001-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'Produção — cabine e forno', 'producao', '2026-01-05T12:00:00Z'),
   ('cc000001-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', 'Comercial', 'comercial', '2026-01-05T12:00:00Z'),
   ('cc000001-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111', 'Administrativo', 'administrativo', '2026-01-05T12:00:00Z')
 on conflict (id) do nothing;
 
-insert into public.contas_receber (
+insert into appintura2.contas_receber (
   id, tenant_id, cliente_id, os_id, descricao, valor, vencimento, status,
   forma_pagamento, centro_custo_id, parcela, total_parcelas, created_at
 )
@@ -355,27 +371,27 @@ values
   ('cr000001-0000-4000-8000-000000000007', '11111111-1111-4111-8111-111111111111', 'eeeeeeee-0000-4000-8000-000000000001', null, 'Fechamento quinzenal — 2a quinzena de julho', 7250, '2026-08-10', 'em_aberto', 'transferencia', 'cc000001-0000-4000-8000-000000000001', null, null, '2026-07-31T12:00:00Z')
 on conflict (id) do nothing;
 
-insert into public.contas_receber_pagamentos (id, conta_receber_id, data_pagamento, valor_pago, juros_multa)
+insert into appintura2.contas_receber_pagamentos (id, conta_receber_id, data_pagamento, valor_pago, juros_multa)
 values
   ('pg000001-0000-4000-8000-000000000001', 'cr000001-0000-4000-8000-000000000003', '2026-09-10', 4200, 0),
   ('pg000001-0000-4000-8000-000000000002', 'cr000001-0000-4000-8000-000000000004', '2026-08-27', 960, 0),
   ('pg000001-0000-4000-8000-000000000003', 'cr000001-0000-4000-8000-000000000007', '2026-08-10', 7250, 0)
 on conflict (id) do nothing;
 
-insert into public.contas_receber_cobranca_historico (
+insert into appintura2.contas_receber_cobranca_historico (
   id, conta_receber_id, data, canal, responsavel_id, resultado, observacao
 )
 select v.id, v.conta, v.data, v.canal, u.id, v.resultado, v.observacao
 from (
   values
-    ('cb000001-0000-4000-8000-000000000001'::uuid, 'cr000001-0000-4000-8000-000000000001'::uuid, '2026-09-08'::date, 'whatsapp'::public.canal_cobranca, 'promessa_pagamento'::public.resultado_cobranca, 'Wagner prometeu pagar ate dia 15.'),
+    ('cb000001-0000-4000-8000-000000000001'::uuid, 'cr000001-0000-4000-8000-000000000001'::uuid, '2026-09-08'::date, 'whatsapp'::appintura2.canal_cobranca, 'promessa_pagamento'::appintura2.resultado_cobranca, 'Wagner prometeu pagar ate dia 15.'),
     ('cb000001-0000-4000-8000-000000000002'::uuid, 'cr000001-0000-4000-8000-000000000001'::uuid, '2026-09-14'::date, 'telefone', 'sem_retorno', 'Ligacao nao atendida.'),
     ('cb000001-0000-4000-8000-000000000003'::uuid, 'cr000001-0000-4000-8000-000000000006'::uuid, '2026-09-02'::date, 'presencial', 'negociado', 'Prazo estendido para 20/10 sem juros.')
 ) as v (id, conta, data, canal, resultado, observacao)
-cross join (select id from auth.users where email = 'marina@metalcor.com.br') u
+cross join (select id from appintura2.usuarios where email = 'marina@metalcor.com.br') u
 on conflict (id) do nothing;
 
-insert into public.contas_pagar (
+insert into appintura2.contas_pagar (
   id, tenant_id, fornecedor, descricao, categoria, valor, vencimento, status,
   recorrente, centro_custo_id, data_pagamento, created_at
 )
@@ -393,10 +409,10 @@ on conflict (id) do nothing;
 --
 -- As notificações NÃO são semeadas: elas nascem das triggers e do job
 -- `avaliar_notificacoes_periodicas()`. Rode a função depois do seed:
---   select public.avaliar_notificacoes_periodicas();
+--   select appintura2.avaliar_notificacoes_periodicas();
 -- ============================================================================
 
-insert into public.ordens_servico (
+insert into appintura2.ordens_servico (
   id, tenant_id, numero, cliente_id, romaneio_recebimento_id, data_entrada,
   previsao_entrega, urgencia, status, cor_id, espessura_min_micron,
   espessura_max_micron, tipo_pretratamento, observacao, created_at
@@ -407,7 +423,7 @@ values
   ('aa000001-0000-4000-8000-000000000009', '11111111-1111-4111-8111-111111111111', 9, 'eeeeeeee-0000-4000-8000-000000000003', 'a1a1a1a1-0000-4000-8000-000000000001', '2026-08-14', '2026-08-28', 'normal', 'finalizado', 'ffffffff-0000-4000-8000-000000000005', 65, 90, 'jateamento', '', '2026-08-14T08:00:00Z')
 on conflict (id) do nothing;
 
-insert into public.os_itens (id, os_id, descricao, quantidade, area_m2)
+insert into appintura2.os_itens (id, os_id, descricao, quantidade, area_m2)
 values
   ('11110001-0000-4000-8000-000000000007', 'aa000001-0000-4000-8000-000000000007', 'Esquadria de alumínio 1,2 m x 1,4 m', 48, 161.28),
   ('11110001-0000-4000-8000-000000000008', 'aa000001-0000-4000-8000-000000000008', 'Portão pivotante 2,8 m x 2,2 m', 6, 73.92),
@@ -419,11 +435,11 @@ on conflict (id) do nothing;
  * `registrar_transicao_os` só grava a abertura e as transições feitas depois.
  * Sem estas linhas, o SLA e o m² por mês ficariam sem base.
  */
-insert into public.os_status_historico (os_id, de, para, responsavel_id, created_at)
+insert into appintura2.os_status_historico (os_id, de, para, responsavel_id, created_at)
 select v.os_id, v.de, v.para, u.id, v.quando
 from (
   values
-    ('aa000001-0000-4000-8000-000000000007'::uuid, null::public.status_os, 'pre_tratamento'::public.status_os, '2026-07-07T07:30:00Z'::timestamptz),
+    ('aa000001-0000-4000-8000-000000000007'::uuid, null::appintura2.status_os, 'pre_tratamento'::appintura2.status_os, '2026-07-07T07:30:00Z'::timestamptz),
     ('aa000001-0000-4000-8000-000000000007', 'pre_tratamento', 'aplicacao_po', '2026-07-09T09:00:00Z'),
     ('aa000001-0000-4000-8000-000000000007', 'aplicacao_po', 'cura', '2026-07-09T13:00:00Z'),
     ('aa000001-0000-4000-8000-000000000007', 'cura', 'controle_qualidade', '2026-07-10T08:30:00Z'),
@@ -443,14 +459,14 @@ from (
     ('aa000001-0000-4000-8000-000000000009', 'controle_qualidade', 'embalagem', '2026-08-24T08:00:00Z'),
     ('aa000001-0000-4000-8000-000000000009', 'embalagem', 'finalizado', '2026-08-26T11:00:00Z')
 ) as v (os_id, de, para, quando)
-cross join (select id from auth.users where email = 'rogerio@metalcor.com.br') u;
+cross join (select id from appintura2.usuarios where email = 'rogerio@metalcor.com.br') u;
 
-insert into public.estoque_movimentacoes (
+insert into appintura2.estoque_movimentacoes (
   id, tenant_id, tipo_item, item_id, item_descricao, tipo_movimento,
   quantidade, unidade, os_id, lote, observacao, responsavel_id, data
 )
-select v.id, '11111111-1111-4111-8111-111111111111'::uuid, 'tinta'::public.tipo_item_estoque,
-       v.item_id, v.descricao, 'saida'::public.tipo_movimento_estoque, v.quantidade, 'kg',
+select v.id, '11111111-1111-4111-8111-111111111111'::uuid, 'tinta'::appintura2.tipo_item_estoque,
+       v.item_id, v.descricao, 'saida'::appintura2.tipo_movimento_estoque, v.quantidade, 'kg',
        v.os_id, v.lote, 'Baixa automática na entrada em aplicação de pó.', u.id, v.data
 from (
   values
@@ -458,16 +474,16 @@ from (
     ('m0000001-0000-4000-8000-000000000011'::uuid, 'ffffffff-0000-4000-8000-000000000003'::uuid, 'RAL 7016 Cinza Antracite', 8.5, 'aa000001-0000-4000-8000-000000000008'::uuid, 'L-2607B', '2026-08-04'::date),
     ('m0000001-0000-4000-8000-000000000012'::uuid, 'ffffffff-0000-4000-8000-000000000005'::uuid, 'RAL 3020 Vermelho Trânsito', 3.1, 'aa000001-0000-4000-8000-000000000009'::uuid, 'L-2608D', '2026-08-19'::date)
 ) as v (id, item_id, descricao, quantidade, os_id, lote, data)
-cross join (select id from auth.users where email = 'rogerio@metalcor.com.br') u
+cross join (select id from appintura2.usuarios where email = 'rogerio@metalcor.com.br') u
 on conflict (id) do nothing;
 
 -- O contador da OS precisa acompanhar as ordens semeadas.
-insert into public.tenant_sequencias (tenant_id, tipo, ultimo_numero)
+insert into appintura2.tenant_sequencias (tenant_id, tipo, ultimo_numero)
 values ('11111111-1111-4111-8111-111111111111', 'os', 9)
 on conflict (tenant_id, tipo) do update set ultimo_numero = excluded.ultimo_numero;
 
 -- Reconcilia os saldos depois das saídas adicionais desta fase.
-update public.cores c
+update appintura2.cores c
 set estoque_atual = v.saldo
 from (
   values

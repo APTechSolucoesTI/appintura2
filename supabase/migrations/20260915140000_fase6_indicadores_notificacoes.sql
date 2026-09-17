@@ -1,10 +1,10 @@
 -- ============================================================================
 -- APPintura — Fase 6: Indicadores e Notificações
 --
--- NÃO APLICADA AINDA. Depende das migrations das Fases 0 a 5.
+-- Objetos no schema `appintura2`. Depende das migrations das Fases 0 a 5.
 -- ============================================================================
 
-create type public.tipo_notificacao as enum (
+create type appintura2.tipo_notificacao as enum (
   'os_aguardando_retirada',
   'os_finalizada',
   'devolucao_disponivel',
@@ -13,10 +13,10 @@ create type public.tipo_notificacao as enum (
   'titulo_vencendo'
 );
 
-create table public.notificacoes (
+create table appintura2.notificacoes (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references public.tenants (id) on delete cascade,
-  tipo public.tipo_notificacao not null,
+  tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
+  tipo appintura2.tipo_notificacao not null,
   titulo text not null,
   descricao text not null default '',
   /*
@@ -36,9 +36,9 @@ create table public.notificacoes (
 );
 
 create index notificacoes_tenant_idx
-  on public.notificacoes (tenant_id, created_at desc);
+  on appintura2.notificacoes (tenant_id, created_at desc);
 create index notificacoes_nao_lidas_idx
-  on public.notificacoes (tenant_id)
+  on appintura2.notificacoes (tenant_id)
   where lida = false;
 
 -- ----------------------------------------------------------------------------
@@ -50,14 +50,14 @@ create index notificacoes_nao_lidas_idx
 -- em que o prazo estoura.
 -- ----------------------------------------------------------------------------
 
-create or replace function public.notificar_mudanca_os()
+create or replace function appintura2.notificar_mudanca_os()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_tipo public.tipo_notificacao;
+  v_tipo appintura2.tipo_notificacao;
   v_titulo text;
   v_descricao text;
 begin
@@ -77,7 +77,7 @@ begin
     return new;
   end if;
 
-  insert into public.notificacoes (
+  insert into appintura2.notificacoes (
     tenant_id, tipo, titulo, descricao, referencia_id, link
   )
   values (
@@ -91,11 +91,11 @@ end
 $$;
 
 create trigger ordens_servico_notificar
-  after update of status on public.ordens_servico
+  after update of status on appintura2.ordens_servico
   for each row
-  execute function public.notificar_mudanca_os();
+  execute function appintura2.notificar_mudanca_os();
 
-create or replace function public.notificar_devolucao()
+create or replace function appintura2.notificar_devolucao()
 returns trigger
 language plpgsql
 security definer
@@ -106,7 +106,7 @@ begin
     return new;
   end if;
 
-  insert into public.notificacoes (
+  insert into appintura2.notificacoes (
     tenant_id, tipo, titulo, descricao, referencia_id, link
   )
   values (
@@ -124,9 +124,9 @@ end
 $$;
 
 create trigger romaneios_devolucao_notificar
-  after insert or update of status on public.romaneios_devolucao
+  after insert or update of status on appintura2.romaneios_devolucao
   for each row
-  execute function public.notificar_devolucao()
+  execute function appintura2.notificar_devolucao()
 ;
 
 -- ----------------------------------------------------------------------------
@@ -135,7 +135,7 @@ create trigger romaneios_devolucao_notificar
 -- Idempotentes pelo `on conflict`: rodar duas vezes no mesmo dia não duplica.
 -- ----------------------------------------------------------------------------
 
-create or replace function public.avaliar_notificacoes_periodicas()
+create or replace function appintura2.avaliar_notificacoes_periodicas()
 returns integer
 language plpgsql
 security definer
@@ -146,7 +146,7 @@ declare
   v_linhas integer;
 begin
   -- Estoque abaixo do mínimo ou com lote vencido.
-  insert into public.notificacoes (tenant_id, tipo, titulo, descricao, referencia_id, link)
+  insert into appintura2.notificacoes (tenant_id, tipo, titulo, descricao, referencia_id, link)
   select
     c.tenant_id,
     'estoque_minimo',
@@ -157,7 +157,7 @@ begin
     end,
     c.id,
     '/app/estoque/posicao'
-  from public.cores c
+  from appintura2.cores c
   where c.estoque_atual < c.estoque_minimo or c.validade < current_date
   on conflict (tenant_id, tipo, referencia_id) do nothing;
 
@@ -165,7 +165,7 @@ begin
   v_criadas := v_criadas + v_linhas;
 
   -- Peças paradas além do limite configurado pela empresa.
-  insert into public.notificacoes (tenant_id, tipo, titulo, descricao, referencia_id, link)
+  insert into appintura2.notificacoes (tenant_id, tipo, titulo, descricao, referencia_id, link)
   select
     s.tenant_id,
     'peca_parada',
@@ -173,9 +173,9 @@ begin
     cl.razao_social || ' — ' || s.saldo || ' unidade(s) no pátio.',
     s.recebimento_item_id,
     '/app/recebimento/custodia'
-  from public.saldo_custodia s
-  join public.clientes cl on cl.id = s.cliente_id
-  join public.configuracoes_tenant cfg on cfg.tenant_id = s.tenant_id
+  from appintura2.saldo_custodia s
+  join appintura2.clientes cl on cl.id = s.cliente_id
+  join appintura2.configuracoes_tenant cfg on cfg.tenant_id = s.tenant_id
   where s.saldo > 0 and s.dias_em_custodia >= cfg.dias_alerta_custodia
   on conflict (tenant_id, tipo, referencia_id) do nothing;
 
@@ -183,7 +183,7 @@ begin
   v_criadas := v_criadas + v_linhas;
 
   -- Títulos vencidos ou a vencer em até 5 dias.
-  insert into public.notificacoes (tenant_id, tipo, titulo, descricao, referencia_id, link)
+  insert into appintura2.notificacoes (tenant_id, tipo, titulo, descricao, referencia_id, link)
   select
     v.tenant_id,
     'titulo_vencendo',
@@ -194,7 +194,7 @@ begin
     v.descricao,
     v.id,
     '/app/financeiro/receber'
-  from public.vw_contas_receber_saldo v
+  from appintura2.vw_contas_receber_saldo v
   where v.status_efetivo in ('em_aberto', 'parcialmente_pago', 'vencido')
     and v.vencimento <= current_date + 5
   on conflict (tenant_id, tipo, referencia_id) do nothing;
@@ -205,14 +205,14 @@ begin
 end
 $$;
 
-comment on function public.avaliar_notificacoes_periodicas is
-  'Agendar com pg_cron: select cron.schedule(''notificacoes-appintura'', ''0 7 * * *'', $$select public.avaliar_notificacoes_periodicas()$$);';
+comment on function appintura2.avaliar_notificacoes_periodicas is
+  'Agendar com pg_cron: select cron.schedule(''notificacoes-appintura'', ''0 7 * * *'', $$select appintura2.avaliar_notificacoes_periodicas()$$);';
 
 -- ----------------------------------------------------------------------------
 -- Base do SLA
 -- ----------------------------------------------------------------------------
 
-create view public.vw_sla_os
+create view appintura2.vw_sla_os
 with (security_invoker = true)
 as
 select
@@ -226,16 +226,16 @@ select
   (fim.created_at::date <= os.previsao_entrega) as no_prazo,
   (fim.created_at::date - os.data_entrada) as dias_realizados,
   (os.previsao_entrega - os.data_entrada) as dias_prometidos
-from public.ordens_servico os
+from appintura2.ordens_servico os
 join lateral (
   select h.created_at
-  from public.os_status_historico h
+  from appintura2.os_status_historico h
   where h.os_id = os.id and h.para = 'finalizado'
   order by h.created_at desc
   limit 1
 ) fim on true;
 
-comment on view public.vw_sla_os is
+comment on view appintura2.vw_sla_os is
   'Prazo prometido x realizado das OS finalizadas. Base do indicador de SLA.';
 
 -- ----------------------------------------------------------------------------
@@ -245,15 +245,19 @@ comment on view public.vw_sla_os is
 -- sensível fica na tela de destino, que tem a RLS do seu próprio módulo.
 -- ----------------------------------------------------------------------------
 
-alter table public.notificacoes enable row level security;
+alter table appintura2.notificacoes enable row level security;
 
 create policy "notificacoes_select"
-  on public.notificacoes for select to authenticated
-  using (tenant_id in (select public.get_user_tenant_ids()));
+  on appintura2.notificacoes for select to authenticated
+  using (tenant_id in (select appintura2.get_user_tenant_ids()));
 
 -- Só "marcar como lida" é permitido pelo client; criar é trabalho das triggers
 -- e do job, ambos SECURITY DEFINER.
 create policy "notificacoes_marcar_lida"
-  on public.notificacoes for update to authenticated
-  using (tenant_id in (select public.get_user_tenant_ids()))
-  with check (tenant_id in (select public.get_user_tenant_ids()));
+  on appintura2.notificacoes for update to authenticated
+  using (tenant_id in (select appintura2.get_user_tenant_ids()))
+  with check (tenant_id in (select appintura2.get_user_tenant_ids()));
+
+insert into appintura2.schema_migrations (version, name)
+values ('20260915140000', 'fase6_indicadores_notificacoes')
+on conflict (version) do nothing;

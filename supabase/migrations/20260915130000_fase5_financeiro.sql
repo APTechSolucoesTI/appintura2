@@ -1,14 +1,14 @@
 -- ============================================================================
 -- APPintura — Fase 5: Financeiro
 --
--- NÃO APLICADA AINDA. Depende das migrations das Fases 0 a 4.
+-- Objetos no schema `appintura2`. Depende das migrations das Fases 0 a 4.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- Parâmetros financeiros por empresa
 -- ----------------------------------------------------------------------------
 
-alter table public.configuracoes_tenant
+alter table appintura2.configuracoes_tenant
   add column multa_percentual numeric(6, 3) not null default 2,
   add column juros_mes_percentual numeric(6, 3) not null default 1,
   add column custo_energia_gas_m2 numeric(12, 4) not null default 0,
@@ -19,7 +19,7 @@ alter table public.configuracoes_tenant
   add constraint configuracoes_encargos_nao_negativos
     check (multa_percentual >= 0 and juros_mes_percentual >= 0);
 
-comment on column public.configuracoes_tenant.custo_energia_gas_m2 is
+comment on column appintura2.configuracoes_tenant.custo_energia_gas_m2 is
   'Rateio estimado. Não sai de nota fiscal por OS — é o dono da fábrica que informa.';
 
 -- ----------------------------------------------------------------------------
@@ -32,60 +32,60 @@ comment on column public.configuracoes_tenant.custo_energia_gas_m2 is
  * do relógio é o que faz o título aparecer "em aberto" três meses depois de
  * vencer.
  */
-create type public.status_conta_base as enum ('em_aberto', 'negociado', 'cancelado');
+create type appintura2.status_conta_base as enum ('em_aberto', 'negociado', 'cancelado');
 
-create type public.forma_pagamento as enum (
+create type appintura2.forma_pagamento as enum (
   'pix', 'boleto', 'transferencia', 'dinheiro', 'cartao'
 );
 
-create type public.forma_faturamento as enum (
+create type appintura2.forma_faturamento as enum (
   'os_avulsa', 'quinzenal', 'mensal', 'contrato'
 );
 
-create type public.categoria_pagar as enum ('fixa', 'variavel', 'insumo_direto');
+create type appintura2.categoria_pagar as enum ('fixa', 'variavel', 'insumo_direto');
 
-create type public.tipo_centro_custo as enum ('producao', 'comercial', 'administrativo');
+create type appintura2.tipo_centro_custo as enum ('producao', 'comercial', 'administrativo');
 
-create type public.canal_cobranca as enum ('telefone', 'whatsapp', 'email', 'presencial');
+create type appintura2.canal_cobranca as enum ('telefone', 'whatsapp', 'email', 'presencial');
 
-create type public.resultado_cobranca as enum (
+create type appintura2.resultado_cobranca as enum (
   'promessa_pagamento', 'sem_retorno', 'contestado', 'negociado', 'pago'
 );
 
 -- Forma de faturamento é acordo comercial do cliente, então mora no cadastro.
-alter table public.clientes
-  add column forma_faturamento public.forma_faturamento not null default 'os_avulsa';
+alter table appintura2.clientes
+  add column forma_faturamento appintura2.forma_faturamento not null default 'os_avulsa';
 
 -- ----------------------------------------------------------------------------
 -- Centros de custo
 -- ----------------------------------------------------------------------------
 
-create table public.centros_custo (
+create table appintura2.centros_custo (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references public.tenants (id) on delete cascade,
+  tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   nome text not null,
-  tipo public.tipo_centro_custo not null,
+  tipo appintura2.tipo_centro_custo not null,
   created_at timestamptz not null default now(),
   constraint centros_custo_nome_unico unique (tenant_id, nome)
 );
 
-create index centros_custo_tenant_idx on public.centros_custo (tenant_id);
+create index centros_custo_tenant_idx on appintura2.centros_custo (tenant_id);
 
 -- ----------------------------------------------------------------------------
 -- Contas a receber
 -- ----------------------------------------------------------------------------
 
-create table public.contas_receber (
+create table appintura2.contas_receber (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references public.tenants (id) on delete cascade,
-  cliente_id uuid not null references public.clientes (id) on delete restrict,
-  os_id uuid references public.ordens_servico (id) on delete set null,
+  tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
+  cliente_id uuid not null references appintura2.clientes (id) on delete restrict,
+  os_id uuid references appintura2.ordens_servico (id) on delete set null,
   descricao text not null default '',
   valor numeric(14, 2) not null,
   vencimento date not null,
-  status public.status_conta_base not null default 'em_aberto',
-  forma_pagamento public.forma_pagamento not null default 'boleto',
-  centro_custo_id uuid references public.centros_custo (id) on delete set null,
+  status appintura2.status_conta_base not null default 'em_aberto',
+  forma_pagamento appintura2.forma_pagamento not null default 'boleto',
+  centro_custo_id uuid references appintura2.centros_custo (id) on delete set null,
   parcela integer,
   total_parcelas integer,
   created_at timestamptz not null default now(),
@@ -97,14 +97,14 @@ create table public.contas_receber (
 );
 
 create index contas_receber_tenant_idx
-  on public.contas_receber (tenant_id, vencimento);
-create index contas_receber_cliente_idx on public.contas_receber (cliente_id);
-create index contas_receber_os_idx on public.contas_receber (os_id) where os_id is not null;
+  on appintura2.contas_receber (tenant_id, vencimento);
+create index contas_receber_cliente_idx on appintura2.contas_receber (cliente_id);
+create index contas_receber_os_idx on appintura2.contas_receber (os_id) where os_id is not null;
 
-create table public.contas_receber_pagamentos (
+create table appintura2.contas_receber_pagamentos (
   id uuid primary key default gen_random_uuid(),
   conta_receber_id uuid not null
-    references public.contas_receber (id) on delete cascade,
+    references appintura2.contas_receber (id) on delete cascade,
   data_pagamento date not null default current_date,
   valor_pago numeric(14, 2) not null,
   -- Juros e multa ficam à parte do principal: somar tudo num campo só faria o
@@ -116,13 +116,13 @@ create table public.contas_receber_pagamentos (
 );
 
 create index contas_receber_pagamentos_conta_idx
-  on public.contas_receber_pagamentos (conta_receber_id);
+  on appintura2.contas_receber_pagamentos (conta_receber_id);
 
 /*
  * Impede que a soma dos pagamentos passe do valor do título. Sem isso, um
  * duplo clique no botão de baixa gera saldo negativo silencioso.
  */
-create or replace function public.validar_pagamento_receber()
+create or replace function appintura2.validar_pagamento_receber()
 returns trigger
 language plpgsql
 security definer
@@ -133,10 +133,10 @@ declare
   v_pago numeric(14, 2);
 begin
   select valor into v_valor
-  from public.contas_receber where id = new.conta_receber_id;
+  from appintura2.contas_receber where id = new.conta_receber_id;
 
   select coalesce(sum(valor_pago), 0) into v_pago
-  from public.contas_receber_pagamentos
+  from appintura2.contas_receber_pagamentos
   where conta_receber_id = new.conta_receber_id
     and id <> new.id;
 
@@ -150,48 +150,48 @@ end
 $$;
 
 create trigger contas_receber_pagamentos_validar
-  before insert or update on public.contas_receber_pagamentos
+  before insert or update on appintura2.contas_receber_pagamentos
   for each row
-  execute function public.validar_pagamento_receber();
+  execute function appintura2.validar_pagamento_receber();
 
-create table public.contas_receber_cobranca_historico (
+create table appintura2.contas_receber_cobranca_historico (
   id uuid primary key default gen_random_uuid(),
   conta_receber_id uuid not null
-    references public.contas_receber (id) on delete cascade,
+    references appintura2.contas_receber (id) on delete cascade,
   data date not null default current_date,
-  canal public.canal_cobranca not null,
-  responsavel_id uuid references auth.users (id),
-  resultado public.resultado_cobranca not null,
+  canal appintura2.canal_cobranca not null,
+  responsavel_id uuid references appintura2.usuarios (id),
+  resultado appintura2.resultado_cobranca not null,
   observacao text not null default '',
   created_at timestamptz not null default now()
 );
 
 create index contas_receber_cobranca_conta_idx
-  on public.contas_receber_cobranca_historico (conta_receber_id, data desc);
+  on appintura2.contas_receber_cobranca_historico (conta_receber_id, data desc);
 
 -- ----------------------------------------------------------------------------
 -- Contas a pagar
 -- ----------------------------------------------------------------------------
 
-create table public.contas_pagar (
+create table appintura2.contas_pagar (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references public.tenants (id) on delete cascade,
+  tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   fornecedor text not null,
   descricao text not null default '',
-  categoria public.categoria_pagar not null,
+  categoria appintura2.categoria_pagar not null,
   valor numeric(14, 2) not null,
   vencimento date not null,
-  status public.status_conta_base not null default 'em_aberto',
+  status appintura2.status_conta_base not null default 'em_aberto',
   recorrente boolean not null default false,
-  centro_custo_id uuid references public.centros_custo (id) on delete set null,
+  centro_custo_id uuid references appintura2.centros_custo (id) on delete set null,
   data_pagamento date,
   created_at timestamptz not null default now(),
   constraint contas_pagar_valor_positivo check (valor > 0)
 );
 
-create index contas_pagar_tenant_idx on public.contas_pagar (tenant_id, vencimento);
+create index contas_pagar_tenant_idx on appintura2.contas_pagar (tenant_id, vencimento);
 create index contas_pagar_abertas_idx
-  on public.contas_pagar (tenant_id, vencimento)
+  on appintura2.contas_pagar (tenant_id, vencimento)
   where data_pagamento is null;
 
 -- ----------------------------------------------------------------------------
@@ -201,7 +201,7 @@ create index contas_pagar_abertas_idx
 -- do dono e ignora RLS.
 -- ----------------------------------------------------------------------------
 
-create view public.vw_contas_receber_saldo
+create view appintura2.vw_contas_receber_saldo
 with (security_invoker = true)
 as
 select
@@ -217,14 +217,14 @@ select
     when coalesce(p.pago, 0) > 0 then 'parcialmente_pago'
     else 'em_aberto'
   end as status_efetivo
-from public.contas_receber cr
+from appintura2.contas_receber cr
 left join lateral (
   select sum(valor_pago) as pago
-  from public.contas_receber_pagamentos
+  from appintura2.contas_receber_pagamentos
   where conta_receber_id = cr.id
 ) p on true;
 
-comment on view public.vw_contas_receber_saldo is
+comment on view appintura2.vw_contas_receber_saldo is
   'Saldo e status efetivo do título. O status nunca é persistido: depende da data de hoje.';
 
 /*
@@ -232,7 +232,7 @@ comment on view public.vw_contas_receber_saldo is
  * coluna provisória. Depois de aplicar esta migration, a coluna deve ser
  * removida — número calculado guardado em tabela vira mentira no dia seguinte.
  */
-create view public.vw_clientes_inadimplencia
+create view appintura2.vw_clientes_inadimplencia
 with (security_invoker = true)
 as
 select
@@ -241,8 +241,8 @@ select
   max(v.dias_atraso) as dias_inadimplencia,
   sum(v.saldo) as valor_vencido,
   count(*) as titulos_vencidos
-from public.contas_receber cr
-join public.vw_contas_receber_saldo v on v.id = cr.id
+from appintura2.contas_receber cr
+join appintura2.vw_contas_receber_saldo v on v.id = cr.id
 where v.status_efetivo = 'vencido'
 group by cr.tenant_id, cr.cliente_id;
 
@@ -254,7 +254,7 @@ group by cr.tenant_id, cr.cliente_id;
 -- chão de fábrica.
 -- ----------------------------------------------------------------------------
 
-create or replace function public.pode_ver_financeiro(tenant_id uuid)
+create or replace function appintura2.pode_ver_financeiro(tenant_id uuid)
 returns boolean
 language sql
 security definer
@@ -262,21 +262,21 @@ stable
 set search_path = ''
 as $$
   select exists (
-    select 1 from public.user_roles ur
-    where ur.user_id = (select auth.uid())
+    select 1 from appintura2.user_roles ur
+    where ur.user_id = (select appintura2.usuario_atual())
       and ur.tenant_id = pode_ver_financeiro.tenant_id
       and ur.role in ('admin', 'financeiro')
       and ur.status = 'ativo'
   )
 $$;
 
-grant execute on function public.pode_ver_financeiro(uuid) to authenticated;
+grant execute on function appintura2.pode_ver_financeiro(uuid) to authenticated;
 
-alter table public.centros_custo enable row level security;
-alter table public.contas_receber enable row level security;
-alter table public.contas_receber_pagamentos enable row level security;
-alter table public.contas_receber_cobranca_historico enable row level security;
-alter table public.contas_pagar enable row level security;
+alter table appintura2.centros_custo enable row level security;
+alter table appintura2.contas_receber enable row level security;
+alter table appintura2.contas_receber_pagamentos enable row level security;
+alter table appintura2.contas_receber_cobranca_historico enable row level security;
+alter table appintura2.contas_pagar enable row level security;
 
 do $$
 declare
@@ -285,25 +285,25 @@ begin
   foreach tabela in array array['centros_custo', 'contas_receber', 'contas_pagar']
   loop
     execute format($f$
-      create policy %1$I on public.%2$I
+      create policy %1$I on appintura2.%2$I
         for select to authenticated
         using (
-          tenant_id in (select public.get_user_tenant_ids())
-          and public.pode_ver_financeiro(tenant_id)
+          tenant_id in (select appintura2.get_user_tenant_ids())
+          and appintura2.pode_ver_financeiro(tenant_id)
         );
     $f$, tabela || '_select', tabela);
 
     execute format($f$
-      create policy %1$I on public.%2$I
+      create policy %1$I on appintura2.%2$I
         for insert to authenticated
-        with check (public.pode_ver_financeiro(tenant_id));
+        with check (appintura2.pode_ver_financeiro(tenant_id));
     $f$, tabela || '_insert', tabela);
 
     execute format($f$
-      create policy %1$I on public.%2$I
+      create policy %1$I on appintura2.%2$I
         for update to authenticated
-        using (public.pode_ver_financeiro(tenant_id))
-        with check (public.pode_ver_financeiro(tenant_id));
+        using (appintura2.pode_ver_financeiro(tenant_id))
+        with check (appintura2.pode_ver_financeiro(tenant_id));
     $f$, tabela || '_update', tabela);
   end loop;
 end
@@ -320,26 +320,26 @@ begin
   ]
   loop
     execute format($f$
-      create policy %1$I on public.%2$I
+      create policy %1$I on appintura2.%2$I
         for select to authenticated
         using (
           exists (
-            select 1 from public.contas_receber cr
+            select 1 from appintura2.contas_receber cr
             where cr.id = %2$I.conta_receber_id
-              and cr.tenant_id in (select public.get_user_tenant_ids())
-              and public.pode_ver_financeiro(cr.tenant_id)
+              and cr.tenant_id in (select appintura2.get_user_tenant_ids())
+              and appintura2.pode_ver_financeiro(cr.tenant_id)
           )
         );
     $f$, tabela || '_select', tabela);
 
     execute format($f$
-      create policy %1$I on public.%2$I
+      create policy %1$I on appintura2.%2$I
         for insert to authenticated
         with check (
           exists (
-            select 1 from public.contas_receber cr
+            select 1 from appintura2.contas_receber cr
             where cr.id = %2$I.conta_receber_id
-              and public.pode_ver_financeiro(cr.tenant_id)
+              and appintura2.pode_ver_financeiro(cr.tenant_id)
           )
         );
     $f$, tabela || '_insert', tabela);
@@ -349,3 +349,7 @@ $$;
 
 -- Sem DELETE em pagamentos: estorno se faz com lançamento de ajuste, não
 -- apagando a linha que prova o que entrou no caixa.
+
+insert into appintura2.schema_migrations (version, name)
+values ('20260915130000', 'fase5_financeiro')
+on conflict (version) do nothing;

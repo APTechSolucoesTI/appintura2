@@ -1,7 +1,7 @@
 -- ============================================================================
 -- APPintura — Fase 7: consulta pública do romaneio (QR code do PDF)
 --
--- NÃO APLICADA AINDA. Depende das migrations das Fases 0 a 6.
+-- Objetos no schema `appintura2`. Depende das migrations das Fases 0 a 6.
 -- ============================================================================
 
 /*
@@ -14,7 +14,7 @@
  * SECURITY DEFINER com `search_path` fixo: é a forma de expor exatamente estes
  * campos ao papel `anon` sem abrir select em tabela nenhuma.
  */
-create or replace function public.consultar_romaneio_publico(
+create or replace function appintura2.consultar_romaneio_publico(
   p_tipo text,
   p_romaneio_id uuid
 )
@@ -34,8 +34,8 @@ as $$
     r.data_hora,
     count(i.id) as total_itens,
     coalesce(sum(i.quantidade), 0) as total_unidades
-  from public.romaneios_recebimento r
-  left join public.romaneio_recebimento_itens i on i.romaneio_id = r.id
+  from appintura2.romaneios_recebimento r
+  left join appintura2.romaneio_recebimento_itens i on i.romaneio_id = r.id
   where p_tipo = 'recebimento' and r.id = p_romaneio_id
   group by r.numero, r.data_hora
 
@@ -46,13 +46,13 @@ as $$
     d.data_hora,
     count(i.id) as total_itens,
     coalesce(sum(i.quantidade), 0) as total_unidades
-  from public.romaneios_devolucao d
-  left join public.romaneio_devolucao_itens i on i.devolucao_id = d.id
+  from appintura2.romaneios_devolucao d
+  left join appintura2.romaneio_devolucao_itens i on i.devolucao_id = d.id
   where p_tipo = 'devolucao' and d.id = p_romaneio_id
   group by d.numero, d.data_hora
 $$;
 
-grant execute on function public.consultar_romaneio_publico(text, uuid)
+grant execute on function appintura2.consultar_romaneio_publico(text, uuid)
   to anon, authenticated;
 
 /*
@@ -66,3 +66,7 @@ grant execute on function public.consultar_romaneio_publico(text, uuid)
  * que vai dentro do QR:
  *   supabase secrets set APP_PUBLIC_URL=https://app.appintura.com.br
  */
+
+insert into appintura2.schema_migrations (version, name)
+values ('20260915150000', 'fase7_consulta_publica_romaneio')
+on conflict (version) do nothing;

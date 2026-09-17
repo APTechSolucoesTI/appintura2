@@ -61,7 +61,7 @@ export const STATUS_DEVOLUCAO_LABEL: Record<StatusDevolucao, string> = {
 
 /**
  * No mock a imagem vive como data URL. Ao conectar o Supabase, `url` passa a ser
- * o caminho no bucket `romaneios-fotos` ({tenant_id}/{romaneio_id}/{arquivo}) e a
+ * o caminho no bucket `appintura2-romaneios-fotos` ({tenant_id}/{romaneio_id}/{arquivo}) e a
  * exibição usa signed URL de curta duração.
  */
 export interface Foto {

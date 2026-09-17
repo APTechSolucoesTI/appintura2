@@ -52,7 +52,10 @@ Deno.serve(async (req) => {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { Authorization: authorization } } },
+    {
+      db: { schema: 'appintura2' },
+      global: { headers: { Authorization: authorization } },
+    },
   )
 
   const { data: conta, error } = await supabase

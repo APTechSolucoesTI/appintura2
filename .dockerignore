@@ -1,0 +1,24 @@
+# Fora do contexto de build: acelera o envio ao daemon e, mais importante,
+# impede que qualquer um destes acabe dentro da imagem.
+
+node_modules
+dist
+dist-ssr
+
+.git
+.gitignore
+
+# Credenciais e configuração local — nada disto deve entrar na imagem. As
+# variáveis do Vite chegam por ARG no Dockerfile.
+.env
+.env.*
+*.local
+
+# As migrations e Edge Functions rodam no Supabase, não no container do front.
+supabase
+
+.vscode
+.idea
+.claude
+*.log
+.DS_Store

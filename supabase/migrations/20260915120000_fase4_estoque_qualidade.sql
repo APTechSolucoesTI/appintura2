@@ -5,23 +5,23 @@
 -- confundir com a custódia de peças de terceiros da Fase 2: lá a mercadoria é do
 -- cliente e sai inteira; aqui o material é da casa e some ao ser aplicado.
 --
--- NÃO APLICADA AINDA. Depende das migrations das Fases 0 a 3.
+-- Objetos no schema `appintura2`. Depende das migrations das Fases 0 a 3.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- Tipos
 -- ----------------------------------------------------------------------------
 
-create type public.tipo_item_estoque as enum ('tinta', 'insumo_quimico');
+create type appintura2.tipo_item_estoque as enum ('tinta', 'insumo_quimico');
 
 /*
  * `perda` é tecnicamente uma saída, mas separada de propósito: misturar quebra
  * de embalagem com consumo de produção arruinaria o indicador de eficiência
  * (g/m²) da Fase 6.
  */
-create type public.tipo_movimento_estoque as enum ('entrada', 'saida', 'perda');
+create type appintura2.tipo_movimento_estoque as enum ('entrada', 'saida', 'perda');
 
-create type public.motivo_perda as enum (
+create type appintura2.motivo_perda as enum (
   'vencimento',
   'contaminacao',
   'derrame',
@@ -30,9 +30,9 @@ create type public.motivo_perda as enum (
   'outro'
 );
 
-create type public.resultado_teste as enum ('aprovado', 'reprovado');
+create type appintura2.resultado_teste as enum ('aprovado', 'reprovado');
 
-create type public.tipo_nao_conformidade as enum (
+create type appintura2.tipo_nao_conformidade as enum (
   'espessura_fora_faixa',
   'aderencia',
   'casca_de_laranja',
@@ -46,10 +46,10 @@ create type public.tipo_nao_conformidade as enum (
 -- Movimentações de estoque
 -- ----------------------------------------------------------------------------
 
-create table public.estoque_movimentacoes (
+create table appintura2.estoque_movimentacoes (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references public.tenants (id) on delete cascade,
-  tipo_item public.tipo_item_estoque not null,
+  tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
+  tipo_item appintura2.tipo_item_estoque not null,
   /*
    * FK polimórfica: aponta para `cores` ou `insumos_quimicos` conforme
    * `tipo_item`. O Postgres não valida isso com FK, então a integridade fica na
@@ -58,14 +58,14 @@ create table public.estoque_movimentacoes (
   item_id uuid not null,
   -- Congelado: o extrato precisa continuar legível se o item for excluído.
   item_descricao text not null,
-  tipo_movimento public.tipo_movimento_estoque not null,
+  tipo_movimento appintura2.tipo_movimento_estoque not null,
   quantidade numeric(12, 3) not null,
   unidade text not null default '',
-  os_id uuid references public.ordens_servico (id) on delete set null,
+  os_id uuid references appintura2.ordens_servico (id) on delete set null,
   lote text not null default '',
-  motivo_perda public.motivo_perda,
+  motivo_perda appintura2.motivo_perda,
   observacao text not null default '',
-  responsavel_id uuid references auth.users (id),
+  responsavel_id uuid references appintura2.usuarios (id),
   data date not null default current_date,
   created_at timestamptz not null default now(),
   constraint movimentacao_quantidade_positiva check (quantidade > 0),
@@ -77,11 +77,11 @@ create table public.estoque_movimentacoes (
 );
 
 create index estoque_movimentacoes_tenant_idx
-  on public.estoque_movimentacoes (tenant_id, created_at desc);
+  on appintura2.estoque_movimentacoes (tenant_id, created_at desc);
 create index estoque_movimentacoes_item_idx
-  on public.estoque_movimentacoes (item_id, created_at desc);
+  on appintura2.estoque_movimentacoes (item_id, created_at desc);
 create index estoque_movimentacoes_os_idx
-  on public.estoque_movimentacoes (os_id)
+  on appintura2.estoque_movimentacoes (os_id)
   where os_id is not null;
 
 /*
@@ -91,7 +91,7 @@ create index estoque_movimentacoes_os_idx
  * saldo sem deixar rastro — que é exatamente o par de erros que faz o estoque
  * de uma fábrica divergir do sistema em três meses.
  */
-create or replace function public.aplicar_movimento_estoque()
+create or replace function appintura2.aplicar_movimento_estoque()
 returns trigger
 language plpgsql
 security definer
@@ -107,12 +107,12 @@ begin
   end;
 
   if new.tipo_item = 'tinta' then
-    update public.cores
+    update appintura2.cores
       set estoque_atual = estoque_atual + v_delta
       where id = new.item_id and tenant_id = new.tenant_id
       returning estoque_atual into v_saldo;
   else
-    update public.insumos_quimicos
+    update appintura2.insumos_quimicos
       set estoque_atual = estoque_atual + v_delta
       where id = new.item_id and tenant_id = new.tenant_id
       returning estoque_atual into v_saldo;
@@ -135,9 +135,9 @@ end
 $$;
 
 create trigger estoque_movimentacoes_aplicar
-  after insert on public.estoque_movimentacoes
+  after insert on appintura2.estoque_movimentacoes
   for each row
-  execute function public.aplicar_movimento_estoque();
+  execute function appintura2.aplicar_movimento_estoque();
 
 /*
  * Baixa automática de tinta quando a OS entra em "aplicação de pó".
@@ -145,7 +145,7 @@ create trigger estoque_movimentacoes_aplicar
  * Idempotente de propósito: mover o card para frente e para trás no Kanban não
  * pode lançar o mesmo consumo duas vezes.
  */
-create or replace function public.baixar_tinta_da_os()
+create or replace function appintura2.baixar_tinta_da_os()
 returns trigger
 language plpgsql
 security definer
@@ -153,7 +153,7 @@ set search_path = ''
 as $$
 declare
   v_area numeric(12, 3);
-  v_cor public.cores%rowtype;
+  v_cor appintura2.cores%rowtype;
   v_quantidade numeric(12, 3);
 begin
   if new.status <> 'aplicacao_po' then
@@ -161,7 +161,7 @@ begin
   end if;
 
   if exists (
-    select 1 from public.estoque_movimentacoes m
+    select 1 from appintura2.estoque_movimentacoes m
     where m.os_id = new.id
       and m.tipo_movimento = 'saida'
       and m.tipo_item = 'tinta'
@@ -170,9 +170,9 @@ begin
   end if;
 
   select coalesce(sum(area_m2), 0) into v_area
-  from public.os_itens where os_id = new.id;
+  from appintura2.os_itens where os_id = new.id;
 
-  select * into v_cor from public.cores where id = new.cor_id;
+  select * into v_cor from appintura2.cores where id = new.cor_id;
 
   if v_cor.id is null or v_area <= 0 then
     return new;
@@ -184,7 +184,7 @@ begin
     return new;
   end if;
 
-  insert into public.estoque_movimentacoes (
+  insert into appintura2.estoque_movimentacoes (
     tenant_id, tipo_item, item_id, item_descricao, tipo_movimento,
     quantidade, unidade, os_id, lote, observacao, responsavel_id
   )
@@ -192,7 +192,7 @@ begin
     new.tenant_id, 'tinta', v_cor.id,
     v_cor.codigo_ral || ' ' || v_cor.nome_comercial, 'saida',
     v_quantidade, 'kg', new.id, v_cor.lote,
-    'Baixa automática na entrada em aplicação de pó.', (select auth.uid())
+    'Baixa automática na entrada em aplicação de pó.', (select appintura2.usuario_atual())
   );
 
   return new;
@@ -200,18 +200,18 @@ end
 $$;
 
 create trigger ordens_servico_baixar_tinta
-  after update of status on public.ordens_servico
+  after update of status on appintura2.ordens_servico
   for each row
-  execute function public.baixar_tinta_da_os();
+  execute function appintura2.baixar_tinta_da_os();
 
 -- ----------------------------------------------------------------------------
 -- Controle de qualidade
 -- ----------------------------------------------------------------------------
 
-create table public.qualidade_registros (
+create table appintura2.qualidade_registros (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references public.tenants (id) on delete cascade,
-  os_item_id uuid not null references public.os_itens (id) on delete cascade,
+  tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
+  os_item_id uuid not null references appintura2.os_itens (id) on delete cascade,
   espessura_medida_micron numeric(6, 1) not null,
   /*
    * A faixa exigida é copiada da OS no momento da medição. Se a ordem for
@@ -219,34 +219,34 @@ create table public.qualidade_registros (
    */
   espessura_min_micron numeric(6, 1) not null,
   espessura_max_micron numeric(6, 1) not null,
-  teste_aderencia public.resultado_teste not null,
+  teste_aderencia appintura2.resultado_teste not null,
   observacao text not null default '',
-  responsavel_id uuid references auth.users (id),
+  responsavel_id uuid references appintura2.usuarios (id),
   data date not null default current_date,
   created_at timestamptz not null default now(),
   constraint qualidade_espessura_positiva check (espessura_medida_micron > 0)
 );
 
 create index qualidade_registros_tenant_idx
-  on public.qualidade_registros (tenant_id, created_at desc);
+  on appintura2.qualidade_registros (tenant_id, created_at desc);
 create index qualidade_registros_item_idx
-  on public.qualidade_registros (os_item_id);
+  on appintura2.qualidade_registros (os_item_id);
 
-create table public.nao_conformidades (
+create table appintura2.nao_conformidades (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references public.tenants (id) on delete cascade,
-  os_item_id uuid not null references public.os_itens (id) on delete cascade,
-  tipo public.tipo_nao_conformidade not null,
+  tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
+  os_item_id uuid not null references appintura2.os_itens (id) on delete cascade,
+  tipo appintura2.tipo_nao_conformidade not null,
   causa text not null,
   acao_corretiva text not null,
-  responsavel_id uuid references auth.users (id),
+  responsavel_id uuid references appintura2.usuarios (id),
   data date not null default current_date,
   created_at timestamptz not null default now()
 );
 
 create index nao_conformidades_tenant_idx
-  on public.nao_conformidades (tenant_id, created_at desc);
-create index nao_conformidades_item_idx on public.nao_conformidades (os_item_id);
+  on appintura2.nao_conformidades (tenant_id, created_at desc);
+create index nao_conformidades_item_idx on appintura2.nao_conformidades (os_item_id);
 
 -- ----------------------------------------------------------------------------
 -- Base do indicador de retrabalho
@@ -260,7 +260,7 @@ create index nao_conformidades_item_idx on public.nao_conformidades (os_item_id)
 -- e ignora RLS.
 -- ----------------------------------------------------------------------------
 
-create view public.vw_os_cabine
+create view appintura2.vw_os_cabine
 with (security_invoker = true)
 as
 select
@@ -271,19 +271,19 @@ select
   cabine.created_at as entrou_na_cabine_em,
   cabine.responsavel_id as operador_id,
   exists (
-    select 1 from public.os_status_historico h
+    select 1 from appintura2.os_status_historico h
     where h.os_id = os.id and h.para = 'retrabalho'
   ) as teve_retrabalho
-from public.ordens_servico os
+from appintura2.ordens_servico os
 join lateral (
   select h.created_at, h.responsavel_id
-  from public.os_status_historico h
+  from appintura2.os_status_historico h
   where h.os_id = os.id and h.para = 'aplicacao_po'
   order by h.created_at
   limit 1
 ) cabine on true;
 
-comment on view public.vw_os_cabine is
+comment on view appintura2.vw_os_cabine is
   'Base do cálculo de taxa de retrabalho. O operador é quem aplicou o pó, não quem registrou a reprovação.';
 
 -- ----------------------------------------------------------------------------
@@ -294,7 +294,7 @@ comment on view public.vw_os_cabine is
 -- que é quem faz a inspeção.
 -- ----------------------------------------------------------------------------
 
-create or replace function public.pode_registrar_qualidade(tenant_id uuid)
+create or replace function appintura2.pode_registrar_qualidade(tenant_id uuid)
 returns boolean
 language sql
 security definer
@@ -302,27 +302,27 @@ stable
 set search_path = ''
 as $$
   select exists (
-    select 1 from public.user_roles ur
-    where ur.user_id = (select auth.uid())
+    select 1 from appintura2.user_roles ur
+    where ur.user_id = (select appintura2.usuario_atual())
       and ur.tenant_id = pode_registrar_qualidade.tenant_id
       and ur.role in ('admin', 'gestor_producao', 'qualidade')
       and ur.status = 'ativo'
   )
 $$;
 
-grant execute on function public.pode_registrar_qualidade(uuid) to authenticated;
+grant execute on function appintura2.pode_registrar_qualidade(uuid) to authenticated;
 
-alter table public.estoque_movimentacoes enable row level security;
-alter table public.qualidade_registros enable row level security;
-alter table public.nao_conformidades enable row level security;
+alter table appintura2.estoque_movimentacoes enable row level security;
+alter table appintura2.qualidade_registros enable row level security;
+alter table appintura2.nao_conformidades enable row level security;
 
 create policy "estoque_movimentacoes_select"
-  on public.estoque_movimentacoes for select to authenticated
-  using (tenant_id in (select public.get_user_tenant_ids()));
+  on appintura2.estoque_movimentacoes for select to authenticated
+  using (tenant_id in (select appintura2.get_user_tenant_ids()));
 
 create policy "estoque_movimentacoes_insert"
-  on public.estoque_movimentacoes for insert to authenticated
-  with check (public.pode_gerenciar_cadastros(tenant_id));
+  on appintura2.estoque_movimentacoes for insert to authenticated
+  with check (appintura2.pode_gerenciar_cadastros(tenant_id));
 
 -- Sem UPDATE nem DELETE: movimentação de estoque é lançamento. Correção se faz
 -- com movimento contrário, preservando o histórico.
@@ -334,23 +334,27 @@ begin
   foreach tabela in array array['qualidade_registros', 'nao_conformidades']
   loop
     execute format($f$
-      create policy %1$I on public.%2$I
+      create policy %1$I on appintura2.%2$I
         for select to authenticated
-        using (tenant_id in (select public.get_user_tenant_ids()));
+        using (tenant_id in (select appintura2.get_user_tenant_ids()));
     $f$, tabela || '_select', tabela);
 
     execute format($f$
-      create policy %1$I on public.%2$I
+      create policy %1$I on appintura2.%2$I
         for insert to authenticated
-        with check (public.pode_registrar_qualidade(tenant_id));
+        with check (appintura2.pode_registrar_qualidade(tenant_id));
     $f$, tabela || '_insert', tabela);
 
     execute format($f$
-      create policy %1$I on public.%2$I
+      create policy %1$I on appintura2.%2$I
         for update to authenticated
-        using (public.pode_registrar_qualidade(tenant_id))
-        with check (public.pode_registrar_qualidade(tenant_id));
+        using (appintura2.pode_registrar_qualidade(tenant_id))
+        with check (appintura2.pode_registrar_qualidade(tenant_id));
     $f$, tabela || '_update', tabela);
   end loop;
 end
 $$;
+
+insert into appintura2.schema_migrations (version, name)
+values ('20260915120000', 'fase4_estoque_qualidade')
+on conflict (version) do nothing;

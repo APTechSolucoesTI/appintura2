@@ -70,7 +70,7 @@ async function baixarAssinatura(
   if (!caminho || !caminho.toLowerCase().endsWith('.png')) return null
 
   const { data, error } = await supabase.storage
-    .from('romaneios-fotos')
+    .from('appintura2-romaneios-fotos')
     .download(caminho)
 
   if (error || !data) return null
@@ -104,7 +104,10 @@ Deno.serve(async (req) => {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { Authorization: authorization } } },
+    {
+      db: { schema: 'appintura2' },
+      global: { headers: { Authorization: authorization } },
+    },
   )
 
   const publicUrl = Deno.env.get('APP_PUBLIC_URL') ?? ''

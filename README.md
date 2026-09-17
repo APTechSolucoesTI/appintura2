@@ -184,9 +184,66 @@ src/
   services/       contratos de dados — trocar mock por Supabase aqui
   types/          tipos de domínio, espelhando as tabelas
 supabase/
-  migrations/     schema com RLS (não aplicado)
-  functions/      Edge Functions (stubs)
+  migrations/     schema appintura2 com RLS (aplicado no servidor)
+  functions/      Edge Functions (sessao-login real; as demais, stubs)
   seed.sql        dados de desenvolvimento
+Dockerfile        build do SPA + nginx (deploy via Dokploy)
+nginx.conf        fallback de SPA, cache e healthcheck
+```
+
+## Banco: schema `appintura2`
+
+O Supabase é **compartilhado** com aperp, apfiscal e apticket. Duas consequências
+que não dá para ignorar:
+
+1. **Todo objeto do APPintura vive em `appintura2`**, nunca em `public` — que é
+   do aperp e já tem `tenants`, `user_roles`, `clientes` e `ordens_servico` com
+   os mesmos nomes dos nossos. O cliente precisa declarar o schema:
+
+   ```ts
+   createClient(URL, ANON_KEY, { db: { schema: 'appintura2' } })
+   ```
+
+   Sem essa linha as consultas caem em `public` e leem/gravam dados do aperp —
+   sem erro nenhum, porque as tabelas existem lá.
+
+2. **Identidade própria.** O APPintura não usa `auth.users`/Supabase Auth: aquele
+   pool é comum a todos os produtos do servidor, então quem se cadastra no aperp
+   seria identidade válida aqui. Usamos `appintura2.usuarios`, e
+   `appintura2.usuario_atual()` substitui `auth.uid()` nas policies.
+
+### Login
+
+`supabase/functions/sessao-login` troca e-mail+senha por um JWT HS256 assinado
+com o mesmo segredo do Supabase — é o que o PostgREST valida. Os claims que
+importam são `role: 'authenticated'` (faz o PostgREST trocar de papel) e `sub`
+(o `usuarios.id`, lido por `usuario_atual()`).
+
+```ts
+const { access_token } = await fetch(`${URL}/functions/v1/sessao-login`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+  body: JSON.stringify({ email, senha }),
+}).then((r) => r.json())
+
+const supabase = createClient(URL, ANON_KEY, {
+  db: { schema: 'appintura2' },
+  global: { headers: { Authorization: `Bearer ${access_token}` } },
+})
+```
+
+Senhas são bcrypt (pgcrypto), e `senha_hash` **não tem grant de SELECT** para
+`anon`/`authenticated` — os grants de `usuarios` são por coluna, porque RLS
+filtra linhas e não colunas.
+
+A função `appintura2.autenticar()` é revogada de `anon`/`authenticated` e só a
+Edge Function (service_role) a chama: exposta na API, ela seria um oráculo de
+força bruta de senha.
+
+Variável necessária nas Edge Functions:
+
+```
+APPINTURA_JWT_SECRET=<mesmo JWT secret do Supabase>
 ```
 
 ## Design system
@@ -237,5 +294,5 @@ CNPJ — caso explicitamente suportado pelo produto. A migration entrega as duas
 funções; use `get_user_tenant_ids()` (plural) nas policies dos módulos:
 
 ```sql
-using (tenant_id in (select public.get_user_tenant_ids()))
+using (tenant_id in (select appintura2.get_user_tenant_ids()))
 ```
