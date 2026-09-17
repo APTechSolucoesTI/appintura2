@@ -4,7 +4,7 @@ import qrcode from 'qrcode-generator'
 import {
   montarPdfRomaneio,
   type DadosRomaneioPdf,
-} from '../../supabase/functions/_shared/romaneio-pdf'
+} from '../../supabase/functions/_appintura2-shared/romaneio-pdf'
 import { formatDocumento, mascararTelefone } from '@/lib/documento'
 import { formatDateTime } from '@/lib/format'
 import { CONDICAO_LABEL, UNIDADE_ITEM_LABEL } from '@/types/custodia'
@@ -17,7 +17,7 @@ import { devolucoesStore, recebimentosStore } from './custodia-service'
  * Geração do PDF de romaneio.
  *
  * Hoje o documento é montado NO NAVEGADOR, usando exatamente o mesmo builder da
- * Edge Function `gerar-pdf-romaneio` (importado de `supabase/functions/_shared`).
+ * Edge Function `gerar-pdf-romaneio` (importado de `supabase/functions/_appintura2-shared`).
  * Assim o botão funciona sem backend e, quando o Supabase entrar, basta trocar o
  * corpo destas funções por `supabase.functions.invoke(...)` — o PDF sai idêntico
  * porque o layout é o mesmo arquivo.

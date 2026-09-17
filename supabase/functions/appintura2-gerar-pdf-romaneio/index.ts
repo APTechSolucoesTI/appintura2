@@ -9,7 +9,7 @@
  *   - qrcode-generator: devolve a matriz do QR; os quadrados são desenhados
  *     como retângulos no próprio PDF, então não há canvas nem DOM envolvidos.
  *
- * O layout NÃO vive aqui: vem de `_shared/romaneio-pdf.ts`, o mesmo arquivo que
+ * O layout NÃO vive aqui: vem de `_appintura2-shared/romaneio-pdf.ts`, o mesmo arquivo que
  * o navegador usa. Duplicar o desenho garantiria que um dia o PDF do servidor
  * ficaria diferente do baixado pela tela.
  */
@@ -22,7 +22,7 @@ import {
   montarPdfRomaneio,
   type DadosRomaneioPdf,
   type ItemRomaneioPdf,
-} from '../_shared/romaneio-pdf.ts'
+} from '../_appintura2-shared/romaneio-pdf.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',

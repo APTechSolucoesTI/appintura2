@@ -15,7 +15,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-import { segredoJwt, tokenDoHeader, verificarToken } from '../_shared/jwt.ts'
+import { segredoJwt, tokenDoHeader, verificarToken } from '../_appintura2-shared/jwt.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',

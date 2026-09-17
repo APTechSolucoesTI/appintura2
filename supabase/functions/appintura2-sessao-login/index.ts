@@ -19,7 +19,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-import { assinarToken, segredoJwt } from '../_shared/jwt.ts'
+import { assinarToken, segredoJwt } from '../_appintura2-shared/jwt.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
