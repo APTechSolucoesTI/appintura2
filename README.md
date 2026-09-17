@@ -125,18 +125,28 @@ mestre do projeto.
 > Edge Function ([`supabase/functions/_shared/romaneio-pdf.ts`](supabase/functions/_shared/romaneio-pdf.ts)).
 > A biblioteca de PDF entra por parâmetro, então o arquivo roda nos dois runtimes
 > sem duplicação — o documento do servidor não pode divergir do baixado pela tela.
-> Ao conectar o Supabase, troque o corpo de `src/services/pdf-service.ts` por
-> `supabase.functions.invoke('gerar-pdf-romaneio', ...)`.
+> `src/services/pdf-service.ts` gera o PDF no navegador. A Edge Function
+> `appintura2-gerar-pdf-romaneio` faz o mesmo no servidor, com o layout vindo do
+> arquivo compartilhado `_appintura2-shared/romaneio-pdf.ts`.
 
-O Supabase ainda **não está conectado**. Autenticação e dados vêm de mocks em
-`src/mocks/seed.ts`, atrás das interfaces em `src/services/`.
+O Supabase **está conectado**. Os mocks foram removidos: `src/services/` fala
+com o schema `appintura2` sob RLS, e a sessão vem da Edge Function
+`appintura2-sessao-login`.
+
+As linhas "dados mockados" nas tabelas acima descrevem o que foi construído em
+cada fase e continuam valendo como inventário de telas — mas o banco começa
+vazio, com um tenant e um admin.
 
 ## Rodando
 
 ```bash
 npm install
+cp .env.example .env.local   # preencha VITE_SUPABASE_ANON_KEY
 npm run dev
 ```
+
+Sem as duas variáveis do Supabase o app falha na carga, de propósito: o erro
+silencioso apareceria só na primeira consulta, como um 401 confuso.
 
 Login de demonstração em `/entrar` — senha `appintura` para qualquer um dos e-mails:
 
@@ -178,10 +188,9 @@ src/
     custodia/     assistente em etapas, captura de foto e de assinatura
     configuracoes/ abas de configuração do tenant
   lib/            formatação pt-BR, validação de CPF/CNPJ, normalização de busca
-  mocks/          seed temporário — remover ao conectar o Supabase
   pages/          homepage, login, 404 e telas de /app
   routes/         layout protegido e guarda por módulo
-  services/       contratos de dados — trocar mock por Supabase aqui
+  services/       acesso a dados (store.ts = contrato, supabase-store.ts = impl)
   types/          tipos de domínio, espelhando as tabelas
 supabase/
   migrations/     schema appintura2 com RLS (aplicado no servidor)
