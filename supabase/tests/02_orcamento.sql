@@ -10,7 +10,15 @@ values (:'t1','RAL9005','Preto','WEG','poliester','lisa','fosco',120,38.5,'L1',c
 select set_config('request.jwt.claims', json_build_object('sub', :'uid','role','authenticated')::text, true) as _cfg \gset
 set local role authenticated;
 
-\echo '=========== E. ORCAMENTO — FASES 1 a 3 ==========='
+\-- Fotografia do funil ANTES do teste: as assercoes da secao H comparam o
+-- DELTA. Medir o valor absoluto so funcionava com o banco vazio, e a view
+-- agrupa por (mes, vendedor) -- com dados reais ela devolve varias linhas, e o
+-- subselect estourava com 'more than one row'.
+select coalesce(sum(ganhos),0) as ganhos_antes,
+       coalesce(sum(valor_fechado),0) as fechado_antes
+  from appintura2.vw_funil_orcamentos where tenant_id=:'t1' gset
+
+echo '=========== E. ORCAMENTO — FASES 1 a 3 ==========='
 select appintura2.salvar_orcamento(:'t1',
   jsonb_build_object('cliente_id',:'c1','cor_id',:'cor1','data_validade',(current_date+15)::text,
     'espessura_min_micron',60,'espessura_max_micron',90,'prazo_entrega_dias',5,
@@ -82,8 +90,10 @@ select 'G09 '||case when (select count(*) from appintura2.vw_checklist_devolucao
 \echo '=========== H. NOTIFICACOES / FUNIL ==========='
 select 'H01 '||case when (select count(*) from appintura2.notificacoes where referencia_id=:'orc' and tipo='orcamento_visualizado')=1 then 'PASS' else 'FAIL' end||' | notificacao de visualizacao';
 select 'H02 '||case when (select count(*) from appintura2.notificacoes where referencia_id=:'orc' and tipo='orcamento_aprovado')=1 then 'PASS' else 'FAIL' end||' | notificacao de aprovacao';
-select 'H03 '||case when (select taxa_aprovacao from appintura2.vw_funil_orcamentos where tenant_id=:'t1')=100.0 then 'PASS' else 'FAIL' end||' | funil calcula taxa';
-select 'H04 '||case when (select valor_fechado from appintura2.vw_funil_orcamentos where tenant_id=:'t1')=850.00 then 'PASS' else 'FAIL' end||' | funil usa valor fechado, nao proposto';
+select 'H03 '||case when (select coalesce(sum(ganhos),0) from appintura2.vw_funil_orcamentos where tenant_id=:'t1') - :ganhos_antes = 1
+                then 'PASS' else 'FAIL' end||' | funil contabiliza a aprovacao como ganho';
+select 'H04 '||case when (select coalesce(sum(valor_fechado),0) from appintura2.vw_funil_orcamentos where tenant_id=:'t1') - :fechado_antes = 850.00
+                then 'PASS' else 'FAIL' end||' | funil soma o valor FECHADO (850), nao o proposto (1350)';
 
 \echo '=========== I. EXPIRACAO / REVISAO ==========='
 set local role authenticated;
