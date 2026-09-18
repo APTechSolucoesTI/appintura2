@@ -149,6 +149,15 @@ insert into appintura2.estoque_movimentacoes (
   (:'tid','tinta',:'cor_branco','RAL 9003 Branco Sinal','entrada',150,'kg','NF 88215 — Sherwin',:'uid', now() - interval '18 days'),
   (:'tid','tinta',:'cor_cinza','RAL 7016 Cinza Antracite','entrada',60,'kg','NF 88402 — Distribuidora WEG',:'uid', now() - interval '6 days');
 
+-- Consumo de um lote grande fechado na semana passada. Derruba a RAL 7016
+-- ABAIXO do minimo de proposito: sem isto o alerta de reposicao nunca aparece
+-- na tela, e a entrada de 60 kg acima ja tinha anulado o estoque baixo inicial.
+insert into appintura2.estoque_movimentacoes (
+  tenant_id, tipo_item, item_id, item_descricao, tipo_movimento, quantidade, unidade,
+  observacao, responsavel_id, data
+) values
+  (:'tid','tinta',:'cor_cinza','RAL 7016 Cinza Antracite','saida',42,'kg','Lote de gabinetes da Cromaq.',:'uid', now() - interval '4 days');
+
 insert into appintura2.estoque_movimentacoes (
   tenant_id, tipo_item, item_id, item_descricao, tipo_movimento, quantidade, unidade,
   motivo_perda, observacao, responsavel_id, data
