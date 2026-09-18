@@ -63,6 +63,21 @@ export function estaEmAberto(status: StatusOrcamento): boolean {
   return ['enviado', 'visualizado', 'alteracao_solicitada'].includes(status)
 }
 
+/**
+ * Da para criar uma nova versao a partir deste?
+ *
+ * Vale tambem para recusado e expirado -- e justamente ai que se faz nova
+ * proposta. So o convertido e o ja revisado ficam de fora: um virou ordem de
+ * servico, o outro ja tem sucessor.
+ *
+ * Rascunho nao entra porque ele se edita direto, sem gerar versao.
+ */
+export function podeRevisar(status: StatusOrcamento): boolean {
+  return ['enviado', 'visualizado', 'alteracao_solicitada', 'rejeitado', 'expirado'].includes(
+    status,
+  )
+}
+
 export interface OrcamentoItem {
   id: string
   orcamento_id: string

@@ -333,7 +333,10 @@ begin
     raise exception 'Seu papel não permite enviar orçamentos.' using errcode = '42501';
   end if;
 
-  if v_status not in ('rascunho', 'enviado', 'visualizado') then
+  -- `alteracao_solicitada` entra na lista porque NAO e decisao final: o link
+  -- original continua valido nesse estado, entao recusar a emissao de um novo
+  -- seria arbitrario -- e a tela oferece o botao, que falhava com erro seco.
+  if v_status not in ('rascunho', 'enviado', 'visualizado', 'alteracao_solicitada') then
     raise exception 'Este orçamento não está em condição de ser enviado.'
       using errcode = '42501';
   end if;

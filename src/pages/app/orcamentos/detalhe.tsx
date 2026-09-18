@@ -25,7 +25,12 @@ import {
   obterComTimeline,
   revisarOrcamento,
 } from '@/services/orcamento-service'
-import { EVENTO_ORCAMENTO_LABEL, ehEditavel, estaEmAberto } from '@/types/orcamento'
+import {
+  EVENTO_ORCAMENTO_LABEL,
+  ehEditavel,
+  estaEmAberto,
+  podeRevisar,
+} from '@/types/orcamento'
 
 import { AnexosOrcamento } from '@/features/orcamentos/components/anexos-orcamento'
 import { BadgeStatusOrcamento } from '@/features/orcamentos/components/badge-orcamento'
@@ -115,7 +120,7 @@ export function OrcamentoDetalhePage() {
               </Button>
             )}
 
-            {estaEmAberto(orcamento.status) && (
+            {podeRevisar(orcamento.status) && (
               <Button
                 variant="outline"
                 onClick={() => revisar.mutate()}
