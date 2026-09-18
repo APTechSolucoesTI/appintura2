@@ -40,7 +40,10 @@ function linhaVazia(): LinhaItem {
     descricao: '',
     tipo_acabamento: '',
     quantidade: '1',
-    area_m2: '0',
+    // Vazio, não '0': zero era aceito pelo formulário, gravado no orçamento e
+    // só explodia na CONVERSÃO, no clique do cliente. Campo em branco obriga o
+    // vendedor a preencher — ele é quem sabe a medida da peça.
+    area_m2: '',
     valor_unitario: '0',
   }
 }
@@ -149,6 +152,17 @@ export function OrcamentoFormularioPage() {
       if (!clienteId) throw new Error('Escolha o cliente.')
       if (!corId) throw new Error('Escolha a cor que será aplicada.')
       if (validos.length === 0) throw new Error('Adicione ao menos um item.')
+
+      // A área alimenta o consumo de tinta e o custo por m², e é copiada para
+      // `os_itens`, que exige positiva. Sem esta checagem a falha só aparecia na
+      // aprovação do cliente — quando já não havia quem pudesse corrigir.
+      const semArea = validos.find((item) => paraNumero(item.area_m2) <= 0)
+
+      if (semArea) {
+        throw new Error(
+          `Informe a área em m² do item "${semArea.descricao.trim()}": ela define o consumo de tinta e o custo da peça.`,
+        )
+      }
 
       const valores = {
         cliente_id: clienteId,
@@ -415,6 +429,10 @@ export function OrcamentoFormularioPage() {
                   <Input
                     id={`area-${item.chave}`}
                     inputMode="decimal"
+                    placeholder="0,00"
+                    aria-invalid={
+                      item.descricao.trim() !== '' && paraNumero(item.area_m2) <= 0
+                    }
                     value={item.area_m2}
                     onChange={(e) => atualizarItem(item.chave, 'area_m2', e.target.value)}
                     disabled={bloqueado}

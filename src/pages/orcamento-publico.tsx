@@ -111,12 +111,27 @@ export function OrcamentoPublicoPage() {
   const podeDecidir = !jaDecidido && !orcamento.vencido
 
   if (resultado?.ok) {
+    // Mapa explícito, e não uma cadeia de ternários com "else": a RPC devolve
+    // 'aprovado_parcial' e, na repetição do duplo clique, 'convertido'. Os dois
+    // caíam no último ramo e diziam ao cliente que ele havia PEDIDO ALTERAÇÃO
+    // logo depois de ele aprovar.
+    const TEXTO_POR_DECISAO: Record<string, string> = {
+      aprovado:
+        'Sua aprovação foi registrada. A produção já foi acionada e seu vendedor entrará em contato para combinar a entrega das peças.',
+      convertido:
+        'Sua aprovação já estava registrada. A produção foi acionada e seu vendedor entrará em contato.',
+      aprovado_parcial:
+        resultado.itens_aprovados !== undefined
+          ? `Sua aprovação de ${resultado.itens_aprovados} de ${resultado.itens_propostos} itens foi registrada. Só o que você selecionou será produzido e cobrado.`
+          : 'Sua aprovação parcial foi registrada. Só os itens que você selecionou serão produzidos e cobrados.',
+      rejeitado: 'Sua recusa foi registrada. Seu vendedor foi avisado.',
+      alteracao_solicitada:
+        'Seu pedido de alteração foi registrado. Seu vendedor vai revisar a proposta e reenviar.',
+    }
+
     const texto =
-      resultado.decisao === 'aprovado'
-        ? 'Sua aprovação foi registrada. A produção já foi acionada e seu vendedor entrará em contato para combinar a entrega das peças.'
-        : resultado.decisao === 'rejeitado'
-          ? 'Sua recusa foi registrada. Seu vendedor foi avisado.'
-          : 'Seu pedido de alteração foi registrado. Seu vendedor vai revisar a proposta e reenviar.'
+      TEXTO_POR_DECISAO[resultado.decisao ?? ''] ??
+      'Sua resposta foi registrada. Seu vendedor foi avisado.'
 
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 text-center">
@@ -313,7 +328,11 @@ export function OrcamentoPublicoPage() {
                     ? 'Informe seu nome completo para aprovar.'
                     : decidir.data.motivo === 'vencido'
                       ? 'Esta proposta venceu. Solicite uma atualização ao seu vendedor.'
-                      : 'Não foi possível registrar sua resposta. Tente novamente.'}
+                      : decidir.data.motivo === 'itens_invalidos'
+                        ? 'Houve um problema com os itens selecionados. Recarregue a página e tente de novo.'
+                        : decidir.data.motivo === 'muitos_itens'
+                          ? 'Esta proposta tem itens demais para seleção individual. Fale com seu vendedor.'
+                          : 'Não foi possível registrar sua resposta. Tente novamente.'}
                 </AlertDescription>
               </Alert>
             )}

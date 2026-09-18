@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom'
 
 import { ListaRegistros } from '@/components/data/lista-registros'
 import { PageHeader } from '@/components/layout/page-header'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -22,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { BadgeStatusOrcamento } from '@/features/orcamentos/components/badge-orcamento'
 import { useTenant } from '@/features/tenant/tenant-context'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { normalizar } from '@/lib/texto'
@@ -30,24 +30,8 @@ import { orcamentosStore } from '@/services/orcamento-service'
 import {
   STATUS_ORCAMENTO,
   STATUS_ORCAMENTO_LABEL,
-  STATUS_ORCAMENTO_TOM,
   type StatusOrcamento,
 } from '@/types/orcamento'
-
-const TOM_CLASSE: Record<string, string> = {
-  success: 'bg-status-success-soft text-status-success-strong',
-  warning: 'bg-status-warning-soft text-status-warning-strong',
-  danger: 'bg-status-danger-soft text-status-danger-strong',
-  neutral: 'bg-status-neutral-soft text-status-neutral-strong',
-}
-
-export function BadgeStatusOrcamento({ status }: { status: StatusOrcamento }) {
-  return (
-    <Badge variant="outline" className={TOM_CLASSE[STATUS_ORCAMENTO_TOM[status]]}>
-      {STATUS_ORCAMENTO_LABEL[status]}
-    </Badge>
-  )
-}
 
 export function OrcamentosPage() {
   const { tenantAtivo } = useTenant()

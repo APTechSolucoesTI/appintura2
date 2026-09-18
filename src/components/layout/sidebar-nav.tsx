@@ -7,7 +7,7 @@ import { podeAcessar } from '@/features/auth/permissions'
 import { useTenant } from '@/features/tenant/tenant-context'
 import { PLANO_LABEL } from '@/types/domain'
 
-import { NAV_GRUPOS } from './nav-config'
+import { NAV_GRUPOS, exigeRotaExata } from './nav-config'
 
 /** Classes do item de navegação, iguais para os módulos e para Configurações. */
 function classesItem(isActive: boolean): string {
@@ -57,7 +57,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
-                    end={item.to === '/app'}
+                    end={item.to === '/app' || exigeRotaExata(item.to)}
                     onClick={onNavigate}
                     className={({ isActive }) => classesItem(isActive)}
                   >

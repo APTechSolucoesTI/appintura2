@@ -28,9 +28,8 @@ import {
 import { EVENTO_ORCAMENTO_LABEL, ehEditavel, estaEmAberto } from '@/types/orcamento'
 
 import { AnexosOrcamento } from '@/features/orcamentos/components/anexos-orcamento'
+import { BadgeStatusOrcamento } from '@/features/orcamentos/components/badge-orcamento'
 import { DiffVersoes } from '@/features/orcamentos/components/diff-versoes'
-
-import { BadgeStatusOrcamento } from './lista'
 
 export function OrcamentoDetalhePage() {
   const { tenantAtivo } = useTenant()

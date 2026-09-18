@@ -258,6 +258,10 @@ begin
   -- `p_itens` nulo = não mexe nos itens; `[]` = esvazia. Mesma convenção das
   -- outras RPCs do schema.
   if p_itens is not null then
+    -- Recusa antes de gravar: area zerada so estouraria na CONVERSAO, no clique do
+    -- cliente, e nao aqui, onde o vendedor ainda pode corrigir.
+    perform appintura2.validar_itens_orcamento(p_itens);
+
     delete from appintura2.orcamento_itens where orcamento_id = v_id;
 
     insert into appintura2.orcamento_itens

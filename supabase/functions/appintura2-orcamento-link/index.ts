@@ -25,7 +25,14 @@ function validar(corpo: unknown): Payload | null {
 
   const { orcamento_id, dias_validade } = corpo as Record<string, unknown>
 
-  if (typeof orcamento_id !== 'string' || !/^[0-9a-f-]{36}$/.test(orcamento_id)) return null
+  // UUID de verdade: o padrão frouxo de antes (`[0-9a-f-]{36}`) deixava passar
+  // valor malformado, que o Postgres recusava com 22P02 e virava 500 na tela.
+  if (
+    typeof orcamento_id !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orcamento_id)
+  ) {
+    return null
+  }
   if (dias_validade !== undefined && typeof dias_validade !== 'number') return null
 
   return { orcamento_id, dias_validade }

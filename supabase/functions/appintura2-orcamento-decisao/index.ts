@@ -36,8 +36,32 @@ interface Payload {
   itens_aprovados: string[] | null
 }
 
+/**
+ * UUID de verdade, não "36 caracteres do alfabeto certo".
+ *
+ * A versão anterior era `/^[0-9a-f-]{36}$/`, que aceita 36 hífens: o valor
+ * passava daqui, o Postgres recusava com 22P02 e o cliente recebia 500 — ou
+ * seja, a resposta que manda tentar de novo para sempre. Ela também rejeitava
+ * maiúsculas, que a RFC 4122 considera válidas.
+ */
+function ehUuid(valor: unknown): valor is string {
+  return (
+    typeof valor === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(valor)
+  )
+}
+
+/**
+ * Teto de itens por decisão.
+ *
+ * Alto o bastante para nunca estorvar um orçamento real, baixo o bastante para
+ * a rota pública não aceitar payload arbitrário. Estourar devolve motivo
+ * próprio, e não uma recusa genérica: o cliente precisa saber por que travou.
+ */
+const LIMITE_ITENS = 500
+
 /** Schema estrito: a superfície pública é o ponto mais sensível do módulo. */
-function validar(corpo: unknown): Payload | null {
+function validar(corpo: unknown): Payload | 'muitos_itens' | null {
   if (typeof corpo !== 'object' || corpo === null) return null
 
   const { token, decisao, autor_nome, autor_documento, mensagem, itens_aprovados } =
@@ -49,15 +73,14 @@ function validar(corpo: unknown): Payload | null {
   const texto = (valor: unknown, limite: number) =>
     typeof valor === 'string' ? valor.trim().slice(0, limite) : ''
 
-  // Lista de itens: aceita ausente/null (= tudo) ou um array de uuids. Qualquer
-  // outra coisa e rejeitada aqui, antes de chegar no banco.
+  // Lista de itens: ausente/null = aceitou tudo.
   let itens: string[] | null = null
 
   if (itens_aprovados !== undefined && itens_aprovados !== null) {
-    if (!Array.isArray(itens_aprovados) || itens_aprovados.length > 200) return null
-    if (!itens_aprovados.every((id) => typeof id === 'string' && /^[0-9a-f-]{36}$/.test(id))) {
-      return null
-    }
+    if (!Array.isArray(itens_aprovados)) return null
+    if (itens_aprovados.length > LIMITE_ITENS) return 'muitos_itens'
+    if (!itens_aprovados.every(ehUuid)) return null
+
     itens = itens_aprovados as string[]
   }
 
@@ -81,9 +104,17 @@ Deno.serve(async (req) => {
     return json({ ok: false, motivo: 'muitas_tentativas' }, 429)
   }
 
-  const payload = validar(await req.json().catch(() => null))
+  const validado = validar(await req.json().catch(() => null))
 
-  if (!payload) return json({ ok: false, motivo: 'payload_invalido' }, 400)
+  // Lista grande demais tem motivo próprio: "payload_invalido" faria o cliente
+  // procurar erro de digitação num problema de tamanho.
+  if (validado === 'muitos_itens') {
+    return json({ ok: false, motivo: 'muitos_itens' }, 400)
+  }
+
+  if (!validado) return json({ ok: false, motivo: 'payload_invalido' }, 400)
+
+  const payload = validado
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
