@@ -35,7 +35,9 @@ insert into appintura2.ordens_servico (tenant_id, cliente_id, romaneio_recebimen
   cor_id, espessura_min_micron, espessura_max_micron)
 values (:'t1',:'c1',:'rom',now(),now()+interval '7 days',:'cor1',60,90) returning id as os1 \gset
 insert into appintura2.os_itens (os_id, descricao, quantidade, area_m2) values (:'os1','Portao',1,10);
-select 'Q01 '||case when (select numero from appintura2.ordens_servico where id=:'os1')=1 then 'PASS' else 'FAIL' end||' | OS recebe numero sequencial';
+select 'Q01 '||case when (select numero from appintura2.ordens_servico where id=:'os1')
+                    = (select coalesce(max(numero),0) from appintura2.ordens_servico where tenant_id=:'t1' and id<>:'os1') + 1
+                then 'PASS' else 'FAIL' end||' | OS recebe numero sequencial';
 select 'Q02 '||case when (select count(*) from appintura2.os_status_historico where os_id=:'os1')=1 then 'PASS' else 'FAIL' end||' | historico inicial gravado por trigger';
 update appintura2.ordens_servico set status='pre_tratamento' where id=:'os1';
 update appintura2.ordens_servico set status='aplicacao_po' where id=:'os1';
@@ -73,7 +75,9 @@ select 'S05 '||case when (select count(*) from appintura2.vw_sla_os)>=0 then 'PA
 \echo '=========== T. CUSTODIA ==========='
 select appintura2.salvar_devolucao(:'t1', jsonb_build_object('cliente_id',:'c1','retirado_por_nome','Motorista'),
   jsonb_build_array(jsonb_build_object('recebimento_item_id',(select id from appintura2.romaneio_recebimento_itens where romaneio_id=:'rom' limit 1),'quantidade',1))) as dev \gset
-select 'T01 '||case when (select numero from appintura2.romaneios_devolucao where id=:'dev')=1 then 'PASS' else 'FAIL' end||' | devolucao numerada por tenant';
+select 'T01 '||case when (select numero from appintura2.romaneios_devolucao where id=:'dev')
+                    = (select coalesce(max(numero),0) from appintura2.romaneios_devolucao where tenant_id=:'t1' and id<>:'dev') + 1
+                then 'PASS' else 'FAIL' end||' | devolucao numerada por tenant';
 select 'T02 '||case when (select saldo from appintura2.vw_checklist_devolucao where romaneio_id=:'rom' limit 1)=0 then 'PASS' else 'FAIL' end||' | saldo de custodia zera apos devolver tudo';
 select 'T03 '||case when (select count(*) from appintura2.saldo_custodia)>=0 then 'PASS' else 'FAIL' end||' | view de saldo consultavel';
 rollback;

@@ -81,3 +81,15 @@ são testes escritos por completude.
 
 A regra prática: se a lógica decide o que o **banco** aceita, o teste é aqui; se
 decide o que a **tela** mostra, é em `src/testes/`.
+
+---
+
+## Os testes rodam contra a base REAL, com dados
+
+Por isso nenhuma asserção pode fixar valor absoluto. `count(*) = 1` e
+`numero = 1` só passavam com o banco vazio — e quebraram no dia em que os dados
+de demonstração entraram, sem que nada tivesse piorado no produto.
+
+A regra: conte a **diferença**, não o total. Para numeração sequencial, compare
+com `max(numero) + 1` do que já existia; para visibilidade sob RLS, verifique
+que o registro do tenant alheio **não** aparece, em vez de contar os do próprio.

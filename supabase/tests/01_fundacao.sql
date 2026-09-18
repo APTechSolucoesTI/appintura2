@@ -29,7 +29,12 @@ exception when others then raise notice 'A07 PASS | senha curta recusada'; end $
 \echo '=========== B. RLS / MULTI-TENANT ==========='
 select set_config('request.jwt.claims', json_build_object('sub', :'uid','role','authenticated')::text, true) as _cfg \gset
 set local role authenticated;
-select 'B01 '||case when (select count(*) from appintura2.clientes)=1 then 'PASS' else 'FAIL' end||' | so enxerga clientes do proprio tenant';
+-- Conta RELATIVA, nao absoluta: a suite roda contra a base real, que tem dados
+-- de uso. Fixar em 1 so passava com o banco vazio, e um teste assim envelhece
+-- mal -- quebra sem que nada tenha piorado no produto.
+select 'B01 '||case when (select count(*) from appintura2.clientes where cnpj_cpf='55666777000188')=0
+                     and (select count(*) from appintura2.clientes where cnpj_cpf='11222333000144')=1
+                then 'PASS' else 'FAIL' end||' | enxerga o cliente do proprio tenant e NAO o do alheio';
 select 'B02 '||case when (select count(*) from appintura2.tenants)=1 then 'PASS' else 'FAIL' end||' | so enxerga o proprio tenant';
 do $blk$ begin insert into appintura2.clientes (tenant_id, razao_social, cnpj_cpf, uf) values ((select id from appintura2.tenants where cnpj='11111111000191'),'Invasor','99999999000199','SP');
   raise notice 'B03 FAIL | gravou em tenant alheio'; exception when others then raise notice 'B03 PASS | insert em tenant alheio barrado'; end $blk$;
@@ -62,7 +67,11 @@ do $blk$ begin perform appintura2.salvar_tabela_preco((select id from appintura2
 
 select appintura2.salvar_recebimento(:'t1', jsonb_build_object('cliente_id', :'c1'),
   jsonb_build_array(jsonb_build_object('descricao','Portao','quantidade',2))) as r1 \gset
-select 'D05 '||case when (select numero from appintura2.romaneios_recebimento where id=:'r1')=1 then 'PASS' else 'FAIL' end||' | numero sequencial por tenant via trigger';
+-- O numero esperado e o maior que ja existia + 1, e nao literalmente 1: a base
+-- real ja tem romaneios emitidos.
+select 'D05 '||case when (select numero from appintura2.romaneios_recebimento where id=:'r1')
+                    = (select coalesce(max(numero),0) from appintura2.romaneios_recebimento where tenant_id=:'t1' and id<>:'r1') + 1
+                then 'PASS' else 'FAIL' end||' | numero sequencial por tenant via trigger';
 select 'D06 '||case when (select conferente_id from appintura2.romaneios_recebimento where id=:'r1')=:'uid' then 'PASS' else 'FAIL' end||' | conferente vem da sessao, nao do corpo';
 do $blk$ declare v uuid; begin select id into v from appintura2.romaneios_recebimento order by created_at desc limit 1;
   perform appintura2.salvar_recebimento((select id from appintura2.tenants where cnpj='36471917000111'), '{}'::jsonb, '[]'::jsonb, v);
