@@ -97,15 +97,22 @@ export async function gerarLinkPublico(
     throw new OrcamentoError(corpo?.erro ?? 'Não foi possível gerar o link.')
   }
 
-  // A Edge Function só devolve URL absoluta quando `APP_PUBLIC_URL` está
-  // definida no servidor. Completar aqui com a origem da própria página é mais
-  // robusto: o app sempre sabe em que domínio está sendo servido, e o servidor
-  // não precisa saber em quantos domínios ele responde.
-  const url = corpo.url.startsWith('http')
-    ? corpo.url
-    : `${window.location.origin}${corpo.url}`
+  // A ORIGEM é sempre a desta página, nunca a que o servidor supõe. Só o
+  // caminho vem da resposta.
+  //
+  // A versão anterior confiava na URL absoluta quando o servidor mandava uma, e
+  // foi assim que o link chegou quebrado ao cliente: `APP_PUBLIC_URL` estava
+  // configurada sem a porta `:75`, então o link apontava para a 443 do IP
+  // público, que o roteador não encaminha — o navegador do cliente ficava
+  // esperando até dar timeout, sem mensagem nenhuma.
+  //
+  // O servidor conhece no máximo um domínio; a página sabe de qual ela foi
+  // servida. Entre os dois, a página está sempre certa.
+  const caminho = corpo.url.startsWith('http')
+    ? new URL(corpo.url).pathname
+    : corpo.url
 
-  return { url }
+  return { url: `${window.location.origin}${caminho}` }
 }
 
 /** Links já emitidos, para a tela mostrar validade e se já foi usado. */
