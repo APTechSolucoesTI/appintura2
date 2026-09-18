@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CalendarCheck,
   CalendarClock,
+  CircleAlert,
   CircleDollarSign,
   Droplets,
   RotateCcw,
@@ -23,6 +24,8 @@ import { Link } from 'react-router-dom'
 
 import { CartaoKpi } from '@/components/data/cartao-kpi'
 import { PageHeader } from '@/components/layout/page-header'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/features/auth/auth-context'
@@ -66,6 +69,34 @@ export function InicioPage() {
   })
 
   const primeiroNome = user?.nome.split(' ').at(0) ?? ''
+
+  // Falha e carregamento eram o mesmo ramo, e `!painelQuery.data` engolia os
+  // dois: quando o painel quebrava, a tela mostrava esqueleto PARA SEMPRE, sem
+  // erro, sem dica, sem como tentar de novo. Foi assim que um select errado no
+  // store de custódia virou "o painel está vazio" em vez de "a consulta falhou".
+  if (painelQuery.isError || configQuery.isError) {
+    return (
+      <>
+        <PageHeader titulo={`${saudacao()}, ${primeiroNome}`} />
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden />
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            Não foi possível carregar os indicadores.
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void configQuery.refetch()
+                void painelQuery.refetch()
+              }}
+            >
+              Tentar novamente
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </>
+    )
+  }
 
   if (painelQuery.isPending || !painelQuery.data) {
     return (

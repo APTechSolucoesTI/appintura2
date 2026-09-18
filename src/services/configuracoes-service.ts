@@ -1,8 +1,15 @@
+import { supabase } from '@/lib/supabase'
+
 /**
  * Parâmetros operacionais e financeiros por empresa.
  *
- * Hoje persistidos em localStorage; ao conectar o Supabase viram a tabela
- * `configuracoes_tenant` (uma linha por tenant, RLS por tenant_id).
+ * Moram em `appintura2.configuracoes_tenant`, uma linha por tenant, com RLS.
+ *
+ * Já estiveram em localStorage, e isso era pior do que "ainda não migrado": as
+ * views do banco — `vw_sla_os` e as de custo — LEEM esta tabela. Com os valores
+ * só no navegador, o mesmo indicador saía diferente conforme quem calculava, e
+ * um parâmetro ajustado num computador não existia para o resto da equipe. São
+ * números que decidem preço e alerta de peça parada; não podem ser locais.
  */
 
 export interface ConfiguracoesTenant {
@@ -36,41 +43,77 @@ export const CONFIGURACOES_PADRAO: Omit<ConfiguracoesTenant, 'tenant_id'> = {
   despesa_fixa_mensal: 42000,
 }
 
-const CHAVE = 'appintura.configuracoes'
+const CAMPOS = Object.keys(CONFIGURACOES_PADRAO) as (keyof Omit<
+  ConfiguracoesTenant,
+  'tenant_id'
+>)[]
 
-type Armazenado = Record<string, Partial<Omit<ConfiguracoesTenant, 'tenant_id'>>>
+/**
+ * Preenche campo a campo a partir do padrão.
+ *
+ * A linha pode não existir (empresa nova) e, mesmo existindo, uma coluna criada
+ * por migration posterior pode estar ausente na resposta. Nos dois casos o valor
+ * padrão vale — o que não pode acontecer é `undefined` chegar num cálculo de
+ * custo e virar `NaN` silencioso na tela.
+ *
+ * O `Number()` é cinto de segurança: este PostgREST devolve `numeric` como
+ * número JSON, mas a garantia do tipo é do driver, e custo caro demais para
+ * confiar de graça.
+ */
+function normalizar(tenantId: string, linha: Record<string, unknown> | null) {
+  const valores = { ...CONFIGURACOES_PADRAO }
 
-function ler(): Armazenado {
-  try {
-    const bruto = localStorage.getItem(CHAVE)
+  for (const campo of CAMPOS) {
+    const bruto = linha?.[campo]
 
-    return bruto ? (JSON.parse(bruto) as Armazenado) : {}
-  } catch {
-    // localStorage corrompido não pode derrubar a tela — cai no padrão.
-    return {}
+    if (bruto === null || bruto === undefined) continue
+
+    const numero = Number(bruto)
+
+    if (Number.isFinite(numero)) valores[campo] = numero
   }
+
+  return { tenant_id: tenantId, ...valores }
 }
 
 export async function obterConfiguracoes(
   tenantId: string,
 ): Promise<ConfiguracoesTenant> {
-  const salvo = ler()[tenantId] ?? {}
+  const { data, error } = await supabase
+    .from('configuracoes_tenant')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
 
-  return { tenant_id: tenantId, ...CONFIGURACOES_PADRAO, ...salvo }
+  // Empresa recém-criada ainda não tem linha, e ler configuração não é hora de
+  // gravar. Os padrões valem até alguém salvar de verdade.
+  if (error) throw new Error(error.message)
+
+  return normalizar(tenantId, data as Record<string, unknown> | null)
 }
 
 /**
  * Patch parcial: cada tela de configuração salva só os campos que edita, sem
  * sobrescrever o que outra aba ajustou.
+ *
+ * É upsert porque a linha pode não existir — e o `onConflict` em `tenant_id`
+ * evita a corrida entre duas abas salvando abas diferentes ao mesmo tempo, que
+ * com insert-ou-update no cliente daria violação de chave primária.
  */
 export async function salvarConfiguracoes(
   tenantId: string,
   patch: Partial<Omit<ConfiguracoesTenant, 'tenant_id'>>,
 ): Promise<ConfiguracoesTenant> {
-  const atual = ler()
-  const mesclado = { ...CONFIGURACOES_PADRAO, ...atual[tenantId], ...patch }
+  const atual = await obterConfiguracoes(tenantId)
+  const { tenant_id: _ignorado, ...semId } = { ...atual, ...patch }
 
-  localStorage.setItem(CHAVE, JSON.stringify({ ...atual, [tenantId]: mesclado }))
+  const { data, error } = await supabase
+    .from('configuracoes_tenant')
+    .upsert({ tenant_id: tenantId, ...semId }, { onConflict: 'tenant_id' })
+    .select()
+    .single()
 
-  return { tenant_id: tenantId, ...mesclado }
+  if (error) throw new Error(error.message)
+
+  return normalizar(tenantId, data as Record<string, unknown>)
 }
