@@ -11,7 +11,8 @@
 -- Tipos
 -- ----------------------------------------------------------------------------
 
-create type appintura2.status_os as enum (
+do $tipo$ begin
+  create type appintura2.status_os as enum (
   'recebido',
   'pre_tratamento',
   'aplicacao_po',
@@ -21,9 +22,12 @@ create type appintura2.status_os as enum (
   'aguardando_retirada',
   'finalizado',
   'retrabalho'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.urgencia_os as enum ('normal', 'alta', 'urgente');
+do $tipo$ begin
+  create type appintura2.urgencia_os as enum ('normal', 'alta', 'urgente');
 
 create type appintura2.tipo_pretratamento as enum (
   'desengraxe',
@@ -31,13 +35,15 @@ create type appintura2.tipo_pretratamento as enum (
   'fosfatizacao',
   'jateamento',
   'nenhum'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
 -- ----------------------------------------------------------------------------
 -- Ordens de serviço
 -- ----------------------------------------------------------------------------
 
-create table appintura2.ordens_servico (
+create table if not exists appintura2.ordens_servico (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   numero integer not null,
@@ -62,17 +68,17 @@ create table appintura2.ordens_servico (
   constraint ordens_servico_espessura_positiva check (espessura_min_micron > 0)
 );
 
-create index ordens_servico_tenant_status_idx
+create index if not exists ordens_servico_tenant_status_idx
   on appintura2.ordens_servico (tenant_id, status);
-create index ordens_servico_cliente_idx on appintura2.ordens_servico (cliente_id);
-create index ordens_servico_romaneio_idx
+create index if not exists ordens_servico_cliente_idx on appintura2.ordens_servico (cliente_id);
+create index if not exists ordens_servico_romaneio_idx
   on appintura2.ordens_servico (romaneio_recebimento_id);
 -- Painel de OS em atraso (Fase 6).
-create index ordens_servico_prazo_idx
+create index if not exists ordens_servico_prazo_idx
   on appintura2.ordens_servico (tenant_id, previsao_entrega)
   where status <> 'finalizado';
 
-create table appintura2.os_itens (
+create table if not exists appintura2.os_itens (
   id uuid primary key default gen_random_uuid(),
   os_id uuid not null references appintura2.ordens_servico (id) on delete cascade,
   descricao text not null,
@@ -84,9 +90,9 @@ create table appintura2.os_itens (
   constraint os_itens_area_positiva check (area_m2 > 0)
 );
 
-create index os_itens_os_idx on appintura2.os_itens (os_id);
+create index if not exists os_itens_os_idx on appintura2.os_itens (os_id);
 
-create table appintura2.os_status_historico (
+create table if not exists appintura2.os_status_historico (
   id uuid primary key default gen_random_uuid(),
   os_id uuid not null references appintura2.ordens_servico (id) on delete cascade,
   de appintura2.status_os,
@@ -96,16 +102,19 @@ create table appintura2.os_status_historico (
   created_at timestamptz not null default now()
 );
 
-create index os_status_historico_os_idx
+create index if not exists os_status_historico_os_idx
   on appintura2.os_status_historico (os_id, created_at desc);
 
 comment on table appintura2.os_status_historico is
   'Trilha de transições. Escrita só por trigger — ninguém insere aqui pelo client.';
 
 -- Fase 2 deixou `os_id` sem FK porque esta tabela ainda não existia.
-alter table appintura2.romaneios_recebimento
-  add constraint romaneios_recebimento_os_fk
+do $cs$ begin
+  alter table appintura2.romaneios_recebimento
+    add constraint romaneios_recebimento_os_fk
   foreign key (os_id) references appintura2.ordens_servico (id) on delete set null;
+exception when duplicate_object then null;
+end $cs$;
 
 -- ----------------------------------------------------------------------------
 -- Numeração e histórico automáticos
@@ -123,6 +132,7 @@ begin
 end
 $$;
 
+drop trigger if exists ordens_servico_numero on appintura2.ordens_servico;
 create trigger ordens_servico_numero
   before insert on appintura2.ordens_servico
   for each row
@@ -155,11 +165,13 @@ begin
 end
 $$;
 
+drop trigger if exists ordens_servico_historico_insert on appintura2.ordens_servico;
 create trigger ordens_servico_historico_insert
   after insert on appintura2.ordens_servico
   for each row
   execute function appintura2.registrar_transicao_os();
 
+drop trigger if exists ordens_servico_historico_update on appintura2.ordens_servico;
 create trigger ordens_servico_historico_update
   after update of status on appintura2.ordens_servico
   for each row
@@ -232,6 +244,7 @@ begin
 end
 $$;
 
+drop trigger if exists ordens_servico_restringir_update on appintura2.ordens_servico;
 create trigger ordens_servico_restringir_update
   before update on appintura2.ordens_servico
   for each row
@@ -245,6 +258,8 @@ alter table appintura2.ordens_servico enable row level security;
 alter table appintura2.os_itens enable row level security;
 alter table appintura2.os_status_historico enable row level security;
 
+drop policy if exists "ordens_servico_select" on appintura2.ordens_servico;
+drop policy if exists "ordens_servico_select" on appintura2.ordens_servico;
 create policy "ordens_servico_select"
   on appintura2.ordens_servico for select to authenticated
   using (
@@ -252,21 +267,29 @@ create policy "ordens_servico_select"
     and appintura2.pode_ver_producao(tenant_id)
   );
 
+drop policy if exists "ordens_servico_insert" on appintura2.ordens_servico;
+drop policy if exists "ordens_servico_insert" on appintura2.ordens_servico;
 create policy "ordens_servico_insert"
   on appintura2.ordens_servico for insert to authenticated
   with check (appintura2.pode_gerenciar_os(tenant_id));
 
 -- Movimentar o card é permitido a todo o chão de fábrica; o trigger acima é que
 -- limita o que cada papel pode de fato alterar.
+drop policy if exists "ordens_servico_update" on appintura2.ordens_servico;
+drop policy if exists "ordens_servico_update" on appintura2.ordens_servico;
 create policy "ordens_servico_update"
   on appintura2.ordens_servico for update to authenticated
   using (appintura2.pode_ver_producao(tenant_id))
   with check (appintura2.pode_ver_producao(tenant_id));
 
+drop policy if exists "ordens_servico_delete" on appintura2.ordens_servico;
+drop policy if exists "ordens_servico_delete" on appintura2.ordens_servico;
 create policy "ordens_servico_delete"
   on appintura2.ordens_servico for delete to authenticated
   using (appintura2.pode_gerenciar_os(tenant_id));
 
+drop policy if exists "os_itens_select" on appintura2.os_itens;
+drop policy if exists "os_itens_select" on appintura2.os_itens;
 create policy "os_itens_select"
   on appintura2.os_itens for select to authenticated
   using (
@@ -278,6 +301,8 @@ create policy "os_itens_select"
     )
   );
 
+drop policy if exists "os_itens_escrita" on appintura2.os_itens;
+drop policy if exists "os_itens_escrita" on appintura2.os_itens;
 create policy "os_itens_escrita"
   on appintura2.os_itens for all to authenticated
   using (
@@ -293,6 +318,8 @@ create policy "os_itens_escrita"
     )
   );
 
+drop policy if exists "os_status_historico_select" on appintura2.os_status_historico;
+drop policy if exists "os_status_historico_select" on appintura2.os_status_historico;
 create policy "os_status_historico_select"
   on appintura2.os_status_historico for select to authenticated
   using (
@@ -310,28 +337,12 @@ create policy "os_status_historico_select"
 -- ----------------------------------------------------------------------------
 -- Consulta pública do QR code
 --
--- O QR vai colado na peça e pode ser lido por qualquer um — inclusive por um
--- concorrente que fotografe a etiqueta no caminhão. Por isso a consulta é uma
--- função que devolve SÓ andamento: nada de cliente, quantidade, cor ou preço.
+-- A função vive em 20260917170000_appintura2_consulta_publica_os.sql, que
+-- devolve também a data da última transição. A versão que existia aqui foi
+-- removida: duas definições da mesma função em migrations diferentes fazem a
+-- reexecução falhar com "cannot change return type", e a daqui era a mais
+-- pobre das duas.
 -- ----------------------------------------------------------------------------
-
-create or replace function appintura2.consultar_os_publica(p_os_id uuid)
-returns table (
-  numero integer,
-  status appintura2.status_os,
-  previsao_entrega date
-)
-language sql
-security definer
-stable
-set search_path = ''
-as $$
-  select os.numero, os.status, os.previsao_entrega
-  from appintura2.ordens_servico os
-  where os.id = p_os_id
-$$;
-
-grant execute on function appintura2.consultar_os_publica(uuid) to anon, authenticated;
 
 insert into appintura2.schema_migrations (version, name)
 values ('20260914150000', 'fase3_ordem_servico')

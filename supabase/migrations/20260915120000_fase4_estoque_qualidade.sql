@@ -12,7 +12,8 @@
 -- Tipos
 -- ----------------------------------------------------------------------------
 
-create type appintura2.tipo_item_estoque as enum ('tinta', 'insumo_quimico');
+do $tipo$ begin
+  create type appintura2.tipo_item_estoque as enum ('tinta', 'insumo_quimico');
 
 /*
  * `perda` é tecnicamente uma saída, mas separada de propósito: misturar quebra
@@ -28,9 +29,12 @@ create type appintura2.motivo_perda as enum (
   'quebra_embalagem',
   'sobra_cabine',
   'outro'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.resultado_teste as enum ('aprovado', 'reprovado');
+do $tipo$ begin
+  create type appintura2.resultado_teste as enum ('aprovado', 'reprovado');
 
 create type appintura2.tipo_nao_conformidade as enum (
   'espessura_fora_faixa',
@@ -40,13 +44,15 @@ create type appintura2.tipo_nao_conformidade as enum (
   'contaminacao',
   'cor_divergente',
   'outro'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
 -- ----------------------------------------------------------------------------
 -- Movimentações de estoque
 -- ----------------------------------------------------------------------------
 
-create table appintura2.estoque_movimentacoes (
+create table if not exists appintura2.estoque_movimentacoes (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   tipo_item appintura2.tipo_item_estoque not null,
@@ -76,11 +82,11 @@ create table appintura2.estoque_movimentacoes (
   )
 );
 
-create index estoque_movimentacoes_tenant_idx
+create index if not exists estoque_movimentacoes_tenant_idx
   on appintura2.estoque_movimentacoes (tenant_id, created_at desc);
-create index estoque_movimentacoes_item_idx
+create index if not exists estoque_movimentacoes_item_idx
   on appintura2.estoque_movimentacoes (item_id, created_at desc);
-create index estoque_movimentacoes_os_idx
+create index if not exists estoque_movimentacoes_os_idx
   on appintura2.estoque_movimentacoes (os_id)
   where os_id is not null;
 
@@ -134,6 +140,7 @@ begin
 end
 $$;
 
+drop trigger if exists estoque_movimentacoes_aplicar on appintura2.estoque_movimentacoes;
 create trigger estoque_movimentacoes_aplicar
   after insert on appintura2.estoque_movimentacoes
   for each row
@@ -199,6 +206,7 @@ begin
 end
 $$;
 
+drop trigger if exists ordens_servico_baixar_tinta on appintura2.ordens_servico;
 create trigger ordens_servico_baixar_tinta
   after update of status on appintura2.ordens_servico
   for each row
@@ -208,7 +216,7 @@ create trigger ordens_servico_baixar_tinta
 -- Controle de qualidade
 -- ----------------------------------------------------------------------------
 
-create table appintura2.qualidade_registros (
+create table if not exists appintura2.qualidade_registros (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   os_item_id uuid not null references appintura2.os_itens (id) on delete cascade,
@@ -227,12 +235,12 @@ create table appintura2.qualidade_registros (
   constraint qualidade_espessura_positiva check (espessura_medida_micron > 0)
 );
 
-create index qualidade_registros_tenant_idx
+create index if not exists qualidade_registros_tenant_idx
   on appintura2.qualidade_registros (tenant_id, created_at desc);
-create index qualidade_registros_item_idx
+create index if not exists qualidade_registros_item_idx
   on appintura2.qualidade_registros (os_item_id);
 
-create table appintura2.nao_conformidades (
+create table if not exists appintura2.nao_conformidades (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   os_item_id uuid not null references appintura2.os_itens (id) on delete cascade,
@@ -244,9 +252,9 @@ create table appintura2.nao_conformidades (
   created_at timestamptz not null default now()
 );
 
-create index nao_conformidades_tenant_idx
+create index if not exists nao_conformidades_tenant_idx
   on appintura2.nao_conformidades (tenant_id, created_at desc);
-create index nao_conformidades_item_idx on appintura2.nao_conformidades (os_item_id);
+create index if not exists nao_conformidades_item_idx on appintura2.nao_conformidades (os_item_id);
 
 -- ----------------------------------------------------------------------------
 -- Base do indicador de retrabalho
@@ -260,7 +268,7 @@ create index nao_conformidades_item_idx on appintura2.nao_conformidades (os_item
 -- e ignora RLS.
 -- ----------------------------------------------------------------------------
 
-create view appintura2.vw_os_cabine
+create or replace view appintura2.vw_os_cabine
 with (security_invoker = true)
 as
 select
@@ -316,10 +324,14 @@ alter table appintura2.estoque_movimentacoes enable row level security;
 alter table appintura2.qualidade_registros enable row level security;
 alter table appintura2.nao_conformidades enable row level security;
 
+drop policy if exists "estoque_movimentacoes_select" on appintura2.estoque_movimentacoes;
+drop policy if exists "estoque_movimentacoes_select" on appintura2.estoque_movimentacoes;
 create policy "estoque_movimentacoes_select"
   on appintura2.estoque_movimentacoes for select to authenticated
   using (tenant_id in (select appintura2.get_user_tenant_ids()));
 
+drop policy if exists "estoque_movimentacoes_insert" on appintura2.estoque_movimentacoes;
+drop policy if exists "estoque_movimentacoes_insert" on appintura2.estoque_movimentacoes;
 create policy "estoque_movimentacoes_insert"
   on appintura2.estoque_movimentacoes for insert to authenticated
   with check (appintura2.pode_gerenciar_cadastros(tenant_id));
@@ -334,18 +346,21 @@ begin
   foreach tabela in array array['qualidade_registros', 'nao_conformidades']
   loop
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for select to authenticated
         using (tenant_id in (select appintura2.get_user_tenant_ids()));
     $f$, tabela || '_select', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for insert to authenticated
         with check (appintura2.pode_registrar_qualidade(tenant_id));
     $f$, tabela || '_insert', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for update to authenticated
         using (appintura2.pode_registrar_qualidade(tenant_id))

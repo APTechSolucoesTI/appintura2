@@ -61,3 +61,23 @@ dois testes de expiração. Ao escrever teste novo, mude estado pelo caminho rea
 Nada de interface. Nenhum clique, formulário, upload ou drag-and-drop é
 exercitado — a suíte prova as regras, não as telas. Também não cobre as Edge
 Functions (que rodam em Deno, fora do banco) nem carga/concorrência.
+
+---
+
+## Testes de interface
+
+Vivem em `src/testes/`, rodam com Vitest e cobrem o que esta suíte **não**
+alcança: renderização, rótulos, classes de estilo e as regras que moram no
+frontend.
+
+```bash
+npm test          # uma passada
+npm run test:watch
+```
+
+Toda asserção lá corresponde a um bug que já aconteceu — selo fora do padrão
+visual, item de menu duplicado, permissão de módulo divergente do banco. Não
+são testes escritos por completude.
+
+A regra prática: se a lógica decide o que o **banco** aceita, o teste é aqui; se
+decide o que a **tela** mostra, é em `src/testes/`.

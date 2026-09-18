@@ -52,6 +52,8 @@ alter table appintura2.orcamento_anexos enable row level security;
 alter table appintura2.orcamento_links enable row level security;
 alter table appintura2.orcamento_eventos enable row level security;
 
+drop policy if exists "orcamentos_select" on appintura2.orcamentos;
+drop policy if exists "orcamentos_select" on appintura2.orcamentos;
 create policy "orcamentos_select"
   on appintura2.orcamentos for select to authenticated
   using (
@@ -63,6 +65,8 @@ create policy "orcamentos_select"
 -- que são o lugar onde as regras de imutabilidade por status vivem. Sem isso o
 -- client poderia dar UPDATE direto num orçamento já aprovado.
 
+drop policy if exists "orcamento_itens_select" on appintura2.orcamento_itens;
+drop policy if exists "orcamento_itens_select" on appintura2.orcamento_itens;
 create policy "orcamento_itens_select"
   on appintura2.orcamento_itens for select to authenticated
   using (
@@ -74,6 +78,8 @@ create policy "orcamento_itens_select"
     )
   );
 
+drop policy if exists "orcamento_anexos_select" on appintura2.orcamento_anexos;
+drop policy if exists "orcamento_anexos_select" on appintura2.orcamento_anexos;
 create policy "orcamento_anexos_select"
   on appintura2.orcamento_anexos for select to authenticated
   using (
@@ -81,10 +87,14 @@ create policy "orcamento_anexos_select"
     and appintura2.pode_gerenciar_orcamento(tenant_id)
   );
 
+drop policy if exists "orcamento_anexos_insert" on appintura2.orcamento_anexos;
+drop policy if exists "orcamento_anexos_insert" on appintura2.orcamento_anexos;
 create policy "orcamento_anexos_insert"
   on appintura2.orcamento_anexos for insert to authenticated
   with check (appintura2.pode_gerenciar_orcamento(tenant_id));
 
+drop policy if exists "orcamento_anexos_delete" on appintura2.orcamento_anexos;
+drop policy if exists "orcamento_anexos_delete" on appintura2.orcamento_anexos;
 create policy "orcamento_anexos_delete"
   on appintura2.orcamento_anexos for delete to authenticated
   using (
@@ -95,6 +105,8 @@ create policy "orcamento_anexos_delete"
     )
   );
 
+drop policy if exists "orcamento_links_select" on appintura2.orcamento_links;
+drop policy if exists "orcamento_links_select" on appintura2.orcamento_links;
 create policy "orcamento_links_select"
   on appintura2.orcamento_links for select to authenticated
   using (
@@ -105,6 +117,8 @@ create policy "orcamento_links_select"
 -- Eventos: leitura pela timeline, e MAIS NADA. Sem insert/update/delete para
 -- `authenticated` — quem grava é sempre uma função SECURITY DEFINER. Uma trilha
 -- que o próprio interessado pode editar não serve como prova.
+drop policy if exists "orcamento_eventos_select" on appintura2.orcamento_eventos;
+drop policy if exists "orcamento_eventos_select" on appintura2.orcamento_eventos;
 create policy "orcamento_eventos_select"
   on appintura2.orcamento_eventos for select to authenticated
   using (

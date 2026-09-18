@@ -65,16 +65,20 @@ alter default privileges in schema appintura2
 -- Tipos
 -- ----------------------------------------------------------------------------
 
-create type appintura2.app_role as enum (
+do $tipo$ begin
+  create type appintura2.app_role as enum (
   'admin',
   'gestor_producao',
   'operador_pintura',
   'qualidade',
   'financeiro',
   'portaria'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.vinculo_status as enum ('ativo', 'pendente', 'inativo');
+do $tipo$ begin
+  create type appintura2.vinculo_status as enum ('ativo', 'pendente', 'inativo');
 
 create type appintura2.plano as enum ('trial', 'essencial', 'profissional', 'enterprise');
 
@@ -87,7 +91,7 @@ create type appintura2.plano as enum ('trial', 'essencial', 'profissional', 'ent
 -- `senha_hash` é bcrypt (pgcrypto). A coluna NUNCA sai pela API: os grants no
 -- fim deste arquivo são por COLUNA justamente para deixá-la de fora — RLS
 -- filtra linhas, não colunas, então só o GRANT resolve isso.
-create table appintura2.usuarios (
+create table if not exists appintura2.usuarios (
   id uuid primary key default gen_random_uuid(),
   email text not null,
   senha_hash text not null,
@@ -99,18 +103,20 @@ create table appintura2.usuarios (
   created_at timestamptz not null default now(),
   constraint usuarios_email_formato check (email ~ '^[^[:space:]@]+@[^[:space:]@]+.[^[:space:]@]+$'),
   constraint usuarios_nome_preenchido check (length(btrim(nome)) > 0)
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
 -- Unicidade sobre lower(email): 'Marina@x' e 'marina@x' são a mesma pessoa, e é
 -- assim que `autenticar()` procura.
-create unique index usuarios_email_unico on appintura2.usuarios (lower(email));
+create unique index if not exists usuarios_email_unico on appintura2.usuarios (lower(email));
 
 comment on table appintura2.usuarios is
   'Identidade do APPintura. Separada de auth.users, que neste servidor é compartilhado com os outros produtos.';
 comment on column appintura2.usuarios.senha_hash is
   'bcrypt via extensions.crypt. Sem grant de SELECT para anon/authenticated.';
 
-create table appintura2.tenants (
+create table if not exists appintura2.tenants (
   id uuid primary key default gen_random_uuid(),
   razao_social text not null,
   nome_fantasia text not null,
@@ -127,7 +133,7 @@ comment on table appintura2.tenants is
 -- Fonte da verdade do vínculo usuário <-> empresa. Deliberadamente NÃO usamos
 -- custom claims no JWT: claim exige hook de Auth configurado e fica defasada
 -- quando o acesso é revogado.
-create table appintura2.user_roles (
+create table if not exists appintura2.user_roles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references appintura2.usuarios (id) on delete cascade,
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
@@ -141,8 +147,8 @@ create table appintura2.user_roles (
 comment on table appintura2.user_roles is
   'Vínculo usuário/empresa/papel. status=pendente representa convite não aceito.';
 
-create index user_roles_user_id_idx on appintura2.user_roles (user_id);
-create index user_roles_tenant_id_idx on appintura2.user_roles (tenant_id);
+create index if not exists user_roles_user_id_idx on appintura2.user_roles (user_id);
+create index if not exists user_roles_tenant_id_idx on appintura2.user_roles (tenant_id);
 
 -- ----------------------------------------------------------------------------
 -- Funções de autorização (SECURITY DEFINER)
@@ -409,6 +415,7 @@ alter table appintura2.user_roles enable row level security;
 --
 -- `usuarios.id` qualificado de propósito: `ur` também tem uma coluna `id`, e
 -- um `id` solto aqui dentro resolveria para a do subselect.
+drop policy if exists "usuarios_select_mesma_empresa" on appintura2.usuarios;
 create policy "usuarios_select_mesma_empresa"
   on appintura2.usuarios
   for select
@@ -425,6 +432,7 @@ create policy "usuarios_select_mesma_empresa"
 
 -- Só o próprio perfil. Quais COLUNAS podem mudar é decidido pelo GRANT no fim
 -- do arquivo (nome e telefone), não por aqui.
+drop policy if exists "usuarios_update_proprio" on appintura2.usuarios;
 create policy "usuarios_update_proprio"
   on appintura2.usuarios
   for update
@@ -437,12 +445,14 @@ create policy "usuarios_update_proprio"
 
 -- --- tenants ---
 
+drop policy if exists "tenants_select_proprios" on appintura2.tenants;
 create policy "tenants_select_proprios"
   on appintura2.tenants
   for select
   to authenticated
   using (id in (select appintura2.get_user_tenant_ids()));
 
+drop policy if exists "tenants_update_admin" on appintura2.tenants;
 create policy "tenants_update_admin"
   on appintura2.tenants
   for update
@@ -455,18 +465,21 @@ create policy "tenants_update_admin"
 
 -- --- user_roles ---
 
+drop policy if exists "user_roles_select_mesmo_tenant" on appintura2.user_roles;
 create policy "user_roles_select_mesmo_tenant"
   on appintura2.user_roles
   for select
   to authenticated
   using (tenant_id in (select appintura2.get_user_tenant_ids()));
 
+drop policy if exists "user_roles_insert_admin" on appintura2.user_roles;
 create policy "user_roles_insert_admin"
   on appintura2.user_roles
   for insert
   to authenticated
   with check (appintura2.has_role('admin', tenant_id));
 
+drop policy if exists "user_roles_update_admin" on appintura2.user_roles;
 create policy "user_roles_update_admin"
   on appintura2.user_roles
   for update
@@ -475,6 +488,7 @@ create policy "user_roles_update_admin"
   with check (appintura2.has_role('admin', tenant_id));
 
 -- Admin não pode remover o próprio vínculo: evita empresa sem nenhum admin.
+drop policy if exists "user_roles_delete_admin" on appintura2.user_roles;
 create policy "user_roles_delete_admin"
   on appintura2.user_roles
   for delete

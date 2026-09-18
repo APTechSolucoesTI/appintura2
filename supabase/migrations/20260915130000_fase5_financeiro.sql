@@ -9,15 +9,23 @@
 -- ----------------------------------------------------------------------------
 
 alter table appintura2.configuracoes_tenant
-  add column multa_percentual numeric(6, 3) not null default 2,
-  add column juros_mes_percentual numeric(6, 3) not null default 1,
-  add column custo_energia_gas_m2 numeric(12, 4) not null default 0,
-  add column custo_mao_obra_m2 numeric(12, 4) not null default 0,
-  add column custo_insumos_quimicos_m2 numeric(12, 4) not null default 0,
-  add column custo_depreciacao_m2 numeric(12, 4) not null default 0,
-  add column despesa_fixa_mensal numeric(14, 2) not null default 0,
-  add constraint configuracoes_encargos_nao_negativos
-    check (multa_percentual >= 0 and juros_mes_percentual >= 0);
+  add column if not exists multa_percentual numeric(6, 3) not null default 2,
+  add column if not exists juros_mes_percentual numeric(6, 3) not null default 1,
+  add column if not exists custo_energia_gas_m2 numeric(12, 4) not null default 0,
+  add column if not exists custo_mao_obra_m2 numeric(12, 4) not null default 0,
+  add column if not exists custo_insumos_quimicos_m2 numeric(12, 4) not null default 0,
+  add column if not exists custo_depreciacao_m2 numeric(12, 4) not null default 0,
+  add column if not exists despesa_fixa_mensal numeric(14, 2) not null default 0;
+
+-- A constraint sai do `alter table` combinado acima e ganha bloco próprio:
+-- `add constraint` não aceita `if not exists`, e reexecutar a migration
+-- quebrava aqui mesmo com todas as colunas já guardadas por `if not exists`.
+do $cs$ begin
+  alter table appintura2.configuracoes_tenant
+    add constraint configuracoes_encargos_nao_negativos
+      check (multa_percentual >= 0 and juros_mes_percentual >= 0);
+exception when duplicate_object then null;
+end $cs$;
 
 comment on column appintura2.configuracoes_tenant.custo_energia_gas_m2 is
   'Rateio estimado. Não sai de nota fiscal por OS — é o dono da fábrica que informa.';
@@ -32,17 +40,24 @@ comment on column appintura2.configuracoes_tenant.custo_energia_gas_m2 is
  * do relógio é o que faz o título aparecer "em aberto" três meses depois de
  * vencer.
  */
-create type appintura2.status_conta_base as enum ('em_aberto', 'negociado', 'cancelado');
+do $tipo$ begin
+  create type appintura2.status_conta_base as enum ('em_aberto', 'negociado', 'cancelado');
 
 create type appintura2.forma_pagamento as enum (
   'pix', 'boleto', 'transferencia', 'dinheiro', 'cartao'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.forma_faturamento as enum (
+do $tipo$ begin
+  create type appintura2.forma_faturamento as enum (
   'os_avulsa', 'quinzenal', 'mensal', 'contrato'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.categoria_pagar as enum ('fixa', 'variavel', 'insumo_direto');
+do $tipo$ begin
+  create type appintura2.categoria_pagar as enum ('fixa', 'variavel', 'insumo_direto');
 
 create type appintura2.tipo_centro_custo as enum ('producao', 'comercial', 'administrativo');
 
@@ -50,17 +65,19 @@ create type appintura2.canal_cobranca as enum ('telefone', 'whatsapp', 'email', 
 
 create type appintura2.resultado_cobranca as enum (
   'promessa_pagamento', 'sem_retorno', 'contestado', 'negociado', 'pago'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
 -- Forma de faturamento é acordo comercial do cliente, então mora no cadastro.
 alter table appintura2.clientes
-  add column forma_faturamento appintura2.forma_faturamento not null default 'os_avulsa';
+  add column if not exists forma_faturamento appintura2.forma_faturamento not null default 'os_avulsa';
 
 -- ----------------------------------------------------------------------------
 -- Centros de custo
 -- ----------------------------------------------------------------------------
 
-create table appintura2.centros_custo (
+create table if not exists appintura2.centros_custo (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   nome text not null,
@@ -69,13 +86,13 @@ create table appintura2.centros_custo (
   constraint centros_custo_nome_unico unique (tenant_id, nome)
 );
 
-create index centros_custo_tenant_idx on appintura2.centros_custo (tenant_id);
+create index if not exists centros_custo_tenant_idx on appintura2.centros_custo (tenant_id);
 
 -- ----------------------------------------------------------------------------
 -- Contas a receber
 -- ----------------------------------------------------------------------------
 
-create table appintura2.contas_receber (
+create table if not exists appintura2.contas_receber (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   cliente_id uuid not null references appintura2.clientes (id) on delete restrict,
@@ -96,12 +113,12 @@ create table appintura2.contas_receber (
   )
 );
 
-create index contas_receber_tenant_idx
+create index if not exists contas_receber_tenant_idx
   on appintura2.contas_receber (tenant_id, vencimento);
-create index contas_receber_cliente_idx on appintura2.contas_receber (cliente_id);
-create index contas_receber_os_idx on appintura2.contas_receber (os_id) where os_id is not null;
+create index if not exists contas_receber_cliente_idx on appintura2.contas_receber (cliente_id);
+create index if not exists contas_receber_os_idx on appintura2.contas_receber (os_id) where os_id is not null;
 
-create table appintura2.contas_receber_pagamentos (
+create table if not exists appintura2.contas_receber_pagamentos (
   id uuid primary key default gen_random_uuid(),
   conta_receber_id uuid not null
     references appintura2.contas_receber (id) on delete cascade,
@@ -115,7 +132,7 @@ create table appintura2.contas_receber_pagamentos (
   constraint pagamento_encargos_nao_negativos check (juros_multa >= 0)
 );
 
-create index contas_receber_pagamentos_conta_idx
+create index if not exists contas_receber_pagamentos_conta_idx
   on appintura2.contas_receber_pagamentos (conta_receber_id);
 
 /*
@@ -149,12 +166,13 @@ begin
 end
 $$;
 
+drop trigger if exists contas_receber_pagamentos_validar on appintura2.contas_receber_pagamentos;
 create trigger contas_receber_pagamentos_validar
   before insert or update on appintura2.contas_receber_pagamentos
   for each row
   execute function appintura2.validar_pagamento_receber();
 
-create table appintura2.contas_receber_cobranca_historico (
+create table if not exists appintura2.contas_receber_cobranca_historico (
   id uuid primary key default gen_random_uuid(),
   conta_receber_id uuid not null
     references appintura2.contas_receber (id) on delete cascade,
@@ -166,14 +184,14 @@ create table appintura2.contas_receber_cobranca_historico (
   created_at timestamptz not null default now()
 );
 
-create index contas_receber_cobranca_conta_idx
+create index if not exists contas_receber_cobranca_conta_idx
   on appintura2.contas_receber_cobranca_historico (conta_receber_id, data desc);
 
 -- ----------------------------------------------------------------------------
 -- Contas a pagar
 -- ----------------------------------------------------------------------------
 
-create table appintura2.contas_pagar (
+create table if not exists appintura2.contas_pagar (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   fornecedor text not null,
@@ -189,8 +207,8 @@ create table appintura2.contas_pagar (
   constraint contas_pagar_valor_positivo check (valor > 0)
 );
 
-create index contas_pagar_tenant_idx on appintura2.contas_pagar (tenant_id, vencimento);
-create index contas_pagar_abertas_idx
+create index if not exists contas_pagar_tenant_idx on appintura2.contas_pagar (tenant_id, vencimento);
+create index if not exists contas_pagar_abertas_idx
   on appintura2.contas_pagar (tenant_id, vencimento)
   where data_pagamento is null;
 
@@ -201,7 +219,7 @@ create index contas_pagar_abertas_idx
 -- do dono e ignora RLS.
 -- ----------------------------------------------------------------------------
 
-create view appintura2.vw_contas_receber_saldo
+create or replace view appintura2.vw_contas_receber_saldo
 with (security_invoker = true)
 as
 select
@@ -232,7 +250,7 @@ comment on view appintura2.vw_contas_receber_saldo is
  * coluna provisória. Depois de aplicar esta migration, a coluna deve ser
  * removida — número calculado guardado em tabela vira mentira no dia seguinte.
  */
-create view appintura2.vw_clientes_inadimplencia
+create or replace view appintura2.vw_clientes_inadimplencia
 with (security_invoker = true)
 as
 select
@@ -285,6 +303,7 @@ begin
   foreach tabela in array array['centros_custo', 'contas_receber', 'contas_pagar']
   loop
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for select to authenticated
         using (
@@ -294,12 +313,14 @@ begin
     $f$, tabela || '_select', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for insert to authenticated
         with check (appintura2.pode_ver_financeiro(tenant_id));
     $f$, tabela || '_insert', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for update to authenticated
         using (appintura2.pode_ver_financeiro(tenant_id))
@@ -320,6 +341,7 @@ begin
   ]
   loop
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for select to authenticated
         using (
@@ -333,6 +355,7 @@ begin
     $f$, tabela || '_select', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for insert to authenticated
         with check (

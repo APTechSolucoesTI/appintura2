@@ -347,6 +347,8 @@ values (
 )
 on conflict (id) do nothing;
 
+drop policy if exists "appintura2_orcamento_anexos_select" on storage.objects;
+drop policy if exists "appintura2_orcamento_anexos_select" on storage.objects;
 create policy "appintura2_orcamento_anexos_select"
   on storage.objects for select to authenticated
   using (
@@ -356,6 +358,8 @@ create policy "appintura2_orcamento_anexos_select"
     )
   );
 
+drop policy if exists "appintura2_orcamento_anexos_insert" on storage.objects;
+drop policy if exists "appintura2_orcamento_anexos_insert" on storage.objects;
 create policy "appintura2_orcamento_anexos_insert"
   on storage.objects for insert to authenticated
   with check (
@@ -366,6 +370,8 @@ create policy "appintura2_orcamento_anexos_insert"
   );
 
 -- Anexo de orçamento em rascunho ainda é rascunho: pode ser trocado.
+drop policy if exists "appintura2_orcamento_anexos_delete" on storage.objects;
+drop policy if exists "appintura2_orcamento_anexos_delete" on storage.objects;
 create policy "appintura2_orcamento_anexos_delete"
   on storage.objects for delete to authenticated
   using (

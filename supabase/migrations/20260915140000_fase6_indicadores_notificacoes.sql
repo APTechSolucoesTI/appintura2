@@ -4,16 +4,19 @@
 -- Objetos no schema `appintura2`. Depende das migrations das Fases 0 a 5.
 -- ============================================================================
 
-create type appintura2.tipo_notificacao as enum (
+do $tipo$ begin
+  create type appintura2.tipo_notificacao as enum (
   'os_aguardando_retirada',
   'os_finalizada',
   'devolucao_disponivel',
   'estoque_minimo',
   'peca_parada',
   'titulo_vencendo'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create table appintura2.notificacoes (
+create table if not exists appintura2.notificacoes (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   tipo appintura2.tipo_notificacao not null,
@@ -35,9 +38,9 @@ create table appintura2.notificacoes (
   constraint notificacoes_unica unique (tenant_id, tipo, referencia_id)
 );
 
-create index notificacoes_tenant_idx
+create index if not exists notificacoes_tenant_idx
   on appintura2.notificacoes (tenant_id, created_at desc);
-create index notificacoes_nao_lidas_idx
+create index if not exists notificacoes_nao_lidas_idx
   on appintura2.notificacoes (tenant_id)
   where lida = false;
 
@@ -90,6 +93,7 @@ begin
 end
 $$;
 
+drop trigger if exists ordens_servico_notificar on appintura2.ordens_servico;
 create trigger ordens_servico_notificar
   after update of status on appintura2.ordens_servico
   for each row
@@ -123,6 +127,7 @@ begin
 end
 $$;
 
+drop trigger if exists romaneios_devolucao_notificar on appintura2.romaneios_devolucao;
 create trigger romaneios_devolucao_notificar
   after insert or update of status on appintura2.romaneios_devolucao
   for each row
@@ -212,7 +217,7 @@ comment on function appintura2.avaliar_notificacoes_periodicas is
 -- Base do SLA
 -- ----------------------------------------------------------------------------
 
-create view appintura2.vw_sla_os
+create or replace view appintura2.vw_sla_os
 with (security_invoker = true)
 as
 select
@@ -247,12 +252,16 @@ comment on view appintura2.vw_sla_os is
 
 alter table appintura2.notificacoes enable row level security;
 
+drop policy if exists "notificacoes_select" on appintura2.notificacoes;
+drop policy if exists "notificacoes_select" on appintura2.notificacoes;
 create policy "notificacoes_select"
   on appintura2.notificacoes for select to authenticated
   using (tenant_id in (select appintura2.get_user_tenant_ids()));
 
 -- Só "marcar como lida" é permitido pelo client; criar é trabalho das triggers
 -- e do job, ambos SECURITY DEFINER.
+drop policy if exists "notificacoes_marcar_lida" on appintura2.notificacoes;
+drop policy if exists "notificacoes_marcar_lida" on appintura2.notificacoes;
 create policy "notificacoes_marcar_lida"
   on appintura2.notificacoes for update to authenticated
   using (tenant_id in (select appintura2.get_user_tenant_ids()))

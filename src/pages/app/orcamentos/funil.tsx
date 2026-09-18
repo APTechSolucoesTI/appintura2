@@ -14,7 +14,12 @@ import {
 } from '@/components/ui/table'
 import { useTenant } from '@/features/tenant/tenant-context'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/format'
-import { funilOrcamentos, motivosDeRecusa } from '@/services/orcamento-service'
+
+import {
+  equipeDoTenant,
+  funilOrcamentos,
+  motivosDeRecusa,
+} from '@/services/orcamento-service'
 
 function Indicador({
   rotulo,
@@ -48,6 +53,21 @@ export function FunilOrcamentosPage() {
     queryKey: ['motivos-recusa', tenantAtivo.id],
     queryFn: () => motivosDeRecusa(tenantAtivo.id),
   })
+
+  // A view agrupa por (mes, vendedor). Sem o nome na tabela, dois vendedores
+  // viram duas linhas com o mesmo mes e nada que as distinga.
+  const equipeQuery = useQuery({
+    queryKey: ['equipe-nomes', tenantAtivo.id],
+    queryFn: () => equipeDoTenant(tenantAtivo.id),
+  })
+
+  const nomePorVendedor = useMemo(() => {
+    const mapa = new Map<string, string>()
+
+    for (const pessoa of equipeQuery.data ?? []) mapa.set(pessoa.id, pessoa.nome)
+
+    return mapa
+  }, [equipeQuery.data])
 
   const linhas = useMemo(() => funilQuery.data ?? [], [funilQuery.data])
 
@@ -143,6 +163,7 @@ export function FunilOrcamentosPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Mês</TableHead>
+                  <TableHead>Vendedor</TableHead>
                   <TableHead className="text-right">Propostos</TableHead>
                   <TableHead className="text-right">Ganhos</TableHead>
                   <TableHead className="hidden sm:table-cell text-right">Perdidos</TableHead>
@@ -157,6 +178,9 @@ export function FunilOrcamentosPage() {
                   <TableRow key={`${linha.mes}-${linha.vendedor_id}`}>
                     <TableCell className="font-mono text-sm">
                       {formatDate(linha.mes).slice(3)}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {nomePorVendedor.get(linha.vendedor_id) ?? '—'}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       {linha.propostos}

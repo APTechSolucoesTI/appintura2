@@ -23,7 +23,8 @@
 -- Tipos
 -- ----------------------------------------------------------------------------
 
-create type appintura2.status_orcamento as enum (
+do $tipo$ begin
+  create type appintura2.status_orcamento as enum (
   'rascunho',
   'enviado',
   'visualizado',
@@ -33,9 +34,12 @@ create type appintura2.status_orcamento as enum (
   'expirado',
   'revisado',
   'convertido'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.evento_orcamento as enum (
+do $tipo$ begin
+  create type appintura2.evento_orcamento as enum (
   'criado',
   'enviado',
   'visualizado',
@@ -45,13 +49,18 @@ create type appintura2.evento_orcamento as enum (
   'expirado',
   'revisado',
   'convertido'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.tipo_anexo_orcamento as enum (
+do $tipo$ begin
+  create type appintura2.tipo_anexo_orcamento as enum (
   'foto_referencia',
   'desenho_tecnico',
   'outro'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
 -- ----------------------------------------------------------------------------
 -- Orçamento
@@ -66,7 +75,7 @@ create type appintura2.tipo_anexo_orcamento as enum (
 -- orçamentos, ou uma revisão.
 -- ----------------------------------------------------------------------------
 
-create table appintura2.orcamentos (
+create table if not exists appintura2.orcamentos (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   numero integer not null,
@@ -109,10 +118,10 @@ comment on table appintura2.orcamentos is
 comment on column appintura2.orcamentos.observacoes_internas is
   'NUNCA exposto no link publico. A funcao de consulta publica nao seleciona esta coluna.';
 
-create index orcamentos_tenant_status_idx
+create index if not exists orcamentos_tenant_status_idx
   on appintura2.orcamentos (tenant_id, status) where deleted_at is null;
-create index orcamentos_cliente_idx on appintura2.orcamentos (cliente_id);
-create index orcamentos_validade_idx
+create index if not exists orcamentos_cliente_idx on appintura2.orcamentos (cliente_id);
+create index if not exists orcamentos_validade_idx
   on appintura2.orcamentos (data_validade)
   where status in ('enviado', 'visualizado') and deleted_at is null;
 
@@ -128,6 +137,7 @@ begin
 end
 $$;
 
+drop trigger if exists orcamentos_numero on appintura2.orcamentos;
 create trigger orcamentos_numero
   before insert on appintura2.orcamentos
   for each row execute function appintura2.atribuir_numero_orcamento();
@@ -143,6 +153,7 @@ begin
 end
 $$;
 
+drop trigger if exists orcamentos_updated_at on appintura2.orcamentos;
 create trigger orcamentos_updated_at
   before update on appintura2.orcamentos
   for each row execute function appintura2.tocar_updated_at();
@@ -155,7 +166,7 @@ create trigger orcamentos_updated_at
 -- cliente aprovou tem de continuar dizendo o que dizia.
 -- ----------------------------------------------------------------------------
 
-create table appintura2.orcamento_itens (
+create table if not exists appintura2.orcamento_itens (
   id uuid primary key default gen_random_uuid(),
   orcamento_id uuid not null references appintura2.orcamentos (id) on delete cascade,
   descricao text not null,
@@ -171,13 +182,13 @@ create table appintura2.orcamento_itens (
     check (valor_unitario >= 0 and valor_total >= 0)
 );
 
-create index orcamento_itens_orcamento_idx on appintura2.orcamento_itens (orcamento_id);
+create index if not exists orcamento_itens_orcamento_idx on appintura2.orcamento_itens (orcamento_id);
 
 -- ----------------------------------------------------------------------------
 -- Anexos
 -- ----------------------------------------------------------------------------
 
-create table appintura2.orcamento_anexos (
+create table if not exists appintura2.orcamento_anexos (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   orcamento_id uuid not null references appintura2.orcamentos (id) on delete cascade,
@@ -187,7 +198,7 @@ create table appintura2.orcamento_anexos (
   created_at timestamptz not null default now()
 );
 
-create index orcamento_anexos_orcamento_idx on appintura2.orcamento_anexos (orcamento_id);
+create index if not exists orcamento_anexos_orcamento_idx on appintura2.orcamento_anexos (orcamento_id);
 
 -- ----------------------------------------------------------------------------
 -- Link público
@@ -199,7 +210,7 @@ create index orcamento_anexos_orcamento_idx on appintura2.orcamento_anexos (orca
 -- painel interno precisa listar os links da própria empresa sob RLS.
 -- ----------------------------------------------------------------------------
 
-create table appintura2.orcamento_links (
+create table if not exists appintura2.orcamento_links (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   orcamento_id uuid not null references appintura2.orcamentos (id) on delete cascade,
@@ -210,7 +221,7 @@ create table appintura2.orcamento_links (
   created_at timestamptz not null default now()
 );
 
-create index orcamento_links_orcamento_idx on appintura2.orcamento_links (orcamento_id);
+create index if not exists orcamento_links_orcamento_idx on appintura2.orcamento_links (orcamento_id);
 
 comment on column appintura2.orcamento_links.token_hash is
   'sha-256 do token em claro. O token so existe uma vez, na resposta da geracao.';
@@ -223,7 +234,7 @@ comment on column appintura2.orcamento_links.token_hash is
 -- sentido de registrar.
 -- ----------------------------------------------------------------------------
 
-create table appintura2.orcamento_eventos (
+create table if not exists appintura2.orcamento_eventos (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   orcamento_id uuid not null references appintura2.orcamentos (id) on delete cascade,
@@ -238,7 +249,7 @@ create table appintura2.orcamento_eventos (
   created_at timestamptz not null default now()
 );
 
-create index orcamento_eventos_orcamento_idx
+create index if not exists orcamento_eventos_orcamento_idx
   on appintura2.orcamento_eventos (orcamento_id, created_at);
 
 comment on table appintura2.orcamento_eventos is
@@ -260,13 +271,13 @@ alter table appintura2.ordens_servico
   alter column romaneio_recebimento_id drop not null;
 
 alter table appintura2.ordens_servico
-  add column orcamento_id uuid references appintura2.orcamentos (id),
-  add column origem text not null default 'direta';
+  add column if not exists orcamento_id uuid references appintura2.orcamentos (id),
+  add column if not exists origem text not null default 'direta';
 
 comment on column appintura2.ordens_servico.origem is
   'direta = aberta no balcao/producao; orcamento = veio de aprovacao comercial. Alimenta o funil.';
 
-create index ordens_servico_orcamento_idx on appintura2.ordens_servico (orcamento_id);
+create index if not exists ordens_servico_orcamento_idx on appintura2.ordens_servico (orcamento_id);
 
 create or replace function appintura2.exigir_romaneio_para_produzir()
 returns trigger
@@ -287,6 +298,7 @@ begin
 end
 $$;
 
+drop trigger if exists ordens_servico_exigir_romaneio on appintura2.ordens_servico;
 create trigger ordens_servico_exigir_romaneio
   before insert or update on appintura2.ordens_servico
   for each row execute function appintura2.exigir_romaneio_para_produzir();

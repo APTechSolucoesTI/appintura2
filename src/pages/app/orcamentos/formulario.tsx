@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { PreRequisitosOrcamento } from '@/features/orcamentos/components/pre-requisitos'
 import { useTenant } from '@/features/tenant/tenant-context'
 import { formatCurrency } from '@/lib/format'
 import { clientesStore, coresStore } from '@/services/cadastros-service'
@@ -200,6 +201,13 @@ export function OrcamentoFormularioPage() {
 
   const bloqueado = editando && orcamentoQuery.data?.status !== 'rascunho'
 
+  // Sem cliente ou sem cor nao da para orcar. Esperar as duas consultas antes de
+  // decidir evita o aviso piscar enquanto elas carregam.
+  const cadastrosCarregados = !clientesQuery.isPending && !coresQuery.isPending
+  const temCliente = (clientesQuery.data ?? []).length > 0
+  const temCor = (coresQuery.data ?? []).length > 0
+  const faltaCadastro = cadastrosCarregados && (!temCliente || !temCor)
+
   return (
     <>
       <PageHeader
@@ -207,6 +215,12 @@ export function OrcamentoFormularioPage() {
         titulo={editando ? 'Editar orçamento' : 'Novo orçamento'}
         descricao="A cor, a espessura e o pré-tratamento definidos aqui são copiados para a ordem de serviço na aprovação."
       />
+
+      {faltaCadastro && (
+        <div className="mb-5">
+          <PreRequisitosOrcamento temCliente={temCliente} temCor={temCor} />
+        </div>
+      )}
 
       {bloqueado && (
         <Alert variant="destructive" className="mb-5">
@@ -522,7 +536,11 @@ export function OrcamentoFormularioPage() {
             Cancelar
           </Button>
 
-          <Button type="submit" size="lg" disabled={bloqueado || salvar.isPending}>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={bloqueado || faltaCadastro || salvar.isPending}
+          >
             {salvar.isPending ? 'Salvando…' : 'Salvar orçamento'}
           </Button>
         </div>

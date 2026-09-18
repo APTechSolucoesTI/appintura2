@@ -12,7 +12,8 @@
 -- Tipos
 -- ----------------------------------------------------------------------------
 
-create type appintura2.unidade_cobranca as enum ('m2', 'peca');
+do $tipo$ begin
+  create type appintura2.unidade_cobranca as enum ('m2', 'peca');
 
 create type appintura2.tipo_tinta as enum ('poliester', 'epoxi', 'hibrida');
 
@@ -25,9 +26,12 @@ create type appintura2.tipo_insumo as enum (
   'decapante',
   'fosfatizante',
   'passivador'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.unidade_medida as enum ('kg', 'L');
+do $tipo$ begin
+  create type appintura2.unidade_medida as enum ('kg', 'L');
 
 -- ----------------------------------------------------------------------------
 -- Autorização de escrita
@@ -60,18 +64,20 @@ grant execute on function appintura2.pode_gerenciar_cadastros(uuid) to authentic
 -- Tabelas de preço
 -- ----------------------------------------------------------------------------
 
-create table appintura2.tabelas_preco (
+create table if not exists appintura2.tabelas_preco (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   nome text not null,
   ativa boolean not null default true,
   created_at timestamptz not null default now(),
   constraint tabelas_preco_nome_unico_por_tenant unique (tenant_id, nome)
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create index tabelas_preco_tenant_idx on appintura2.tabelas_preco (tenant_id);
+create index if not exists tabelas_preco_tenant_idx on appintura2.tabelas_preco (tenant_id);
 
-create table appintura2.tabela_preco_itens (
+create table if not exists appintura2.tabela_preco_itens (
   id uuid primary key default gen_random_uuid(),
   tabela_preco_id uuid not null
     references appintura2.tabelas_preco (id) on delete cascade,
@@ -82,7 +88,7 @@ create table appintura2.tabela_preco_itens (
   constraint tabela_preco_itens_unico unique (tabela_preco_id, tipo_acabamento, unidade)
 );
 
-create index tabela_preco_itens_tabela_idx
+create index if not exists tabela_preco_itens_tabela_idx
   on appintura2.tabela_preco_itens (tabela_preco_id);
 
 comment on table appintura2.tabela_preco_itens is
@@ -92,7 +98,7 @@ comment on table appintura2.tabela_preco_itens is
 -- Clientes
 -- ----------------------------------------------------------------------------
 
-create table appintura2.clientes (
+create table if not exists appintura2.clientes (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   razao_social text not null,
@@ -122,16 +128,16 @@ create table appintura2.clientes (
   constraint clientes_inadimplencia_nao_negativa check (dias_inadimplencia_atual >= 0)
 );
 
-create index clientes_tenant_idx on appintura2.clientes (tenant_id);
-create index clientes_tabela_preco_idx on appintura2.clientes (tabela_preco_id);
+create index if not exists clientes_tenant_idx on appintura2.clientes (tenant_id);
+create index if not exists clientes_tabela_preco_idx on appintura2.clientes (tabela_preco_id);
 -- Busca por razão social na listagem.
-create index clientes_razao_social_idx on appintura2.clientes (tenant_id, razao_social);
+create index if not exists clientes_razao_social_idx on appintura2.clientes (tenant_id, razao_social);
 
 -- ----------------------------------------------------------------------------
 -- Cores e tintas
 -- ----------------------------------------------------------------------------
 
-create table appintura2.cores (
+create table if not exists appintura2.cores (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   codigo_ral text not null,
@@ -155,9 +161,9 @@ create table appintura2.cores (
     check (estoque_atual >= 0 and estoque_minimo >= 0)
 );
 
-create index cores_tenant_idx on appintura2.cores (tenant_id);
+create index if not exists cores_tenant_idx on appintura2.cores (tenant_id);
 -- Alimenta o painel de alertas: cores abaixo do mínimo ou vencendo.
-create index cores_alerta_idx on appintura2.cores (tenant_id, validade);
+create index if not exists cores_alerta_idx on appintura2.cores (tenant_id, validade);
 
 comment on column appintura2.cores.rendimento_teorico_g_m2 is
   'Gramas de pó por m² segundo a ficha técnica. Base do consumo estimado da OS.';
@@ -166,7 +172,7 @@ comment on column appintura2.cores.rendimento_teorico_g_m2 is
 -- Insumos químicos
 -- ----------------------------------------------------------------------------
 
-create table appintura2.insumos_quimicos (
+create table if not exists appintura2.insumos_quimicos (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   nome text not null,
@@ -182,14 +188,14 @@ create table appintura2.insumos_quimicos (
     check (estoque_atual >= 0 and estoque_minimo >= 0)
 );
 
-create index insumos_tenant_idx on appintura2.insumos_quimicos (tenant_id);
-create index insumos_alerta_idx on appintura2.insumos_quimicos (tenant_id, validade);
+create index if not exists insumos_tenant_idx on appintura2.insumos_quimicos (tenant_id);
+create index if not exists insumos_alerta_idx on appintura2.insumos_quimicos (tenant_id, validade);
 
 -- ----------------------------------------------------------------------------
 -- Transportadoras
 -- ----------------------------------------------------------------------------
 
-create table appintura2.transportadoras (
+create table if not exists appintura2.transportadoras (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   nome text not null,
@@ -202,7 +208,7 @@ create table appintura2.transportadoras (
   constraint transportadoras_cnpj_unico_por_tenant unique (tenant_id, cnpj)
 );
 
-create index transportadoras_tenant_idx on appintura2.transportadoras (tenant_id);
+create index if not exists transportadoras_tenant_idx on appintura2.transportadoras (tenant_id);
 
 -- ----------------------------------------------------------------------------
 -- RLS
@@ -231,18 +237,21 @@ begin
   ]
   loop
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for select to authenticated
         using (tenant_id in (select appintura2.get_user_tenant_ids()));
     $f$, tabela || '_select', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for insert to authenticated
         with check (appintura2.pode_gerenciar_cadastros(tenant_id));
     $f$, tabela || '_insert', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for update to authenticated
         using (appintura2.pode_gerenciar_cadastros(tenant_id))
@@ -250,6 +259,7 @@ begin
     $f$, tabela || '_update', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for delete to authenticated
         using (appintura2.pode_gerenciar_cadastros(tenant_id));
@@ -260,6 +270,7 @@ $$;
 
 -- tabela_preco_itens não tem tenant_id: a autorização passa pela tabela pai.
 
+drop policy if exists "tabela_preco_itens_select" on appintura2.tabela_preco_itens;
 create policy "tabela_preco_itens_select"
   on appintura2.tabela_preco_itens
   for select
@@ -273,6 +284,7 @@ create policy "tabela_preco_itens_select"
     )
   );
 
+drop policy if exists "tabela_preco_itens_insert" on appintura2.tabela_preco_itens;
 create policy "tabela_preco_itens_insert"
   on appintura2.tabela_preco_itens
   for insert
@@ -286,6 +298,7 @@ create policy "tabela_preco_itens_insert"
     )
   );
 
+drop policy if exists "tabela_preco_itens_update" on appintura2.tabela_preco_itens;
 create policy "tabela_preco_itens_update"
   on appintura2.tabela_preco_itens
   for update
@@ -307,6 +320,7 @@ create policy "tabela_preco_itens_update"
     )
   );
 
+drop policy if exists "tabela_preco_itens_delete" on appintura2.tabela_preco_itens;
 create policy "tabela_preco_itens_delete"
   on appintura2.tabela_preco_itens
   for delete

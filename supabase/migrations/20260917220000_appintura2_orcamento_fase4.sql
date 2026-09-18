@@ -30,10 +30,10 @@
 -- porque `criar_romaneio_esperado`, logo abaixo, ja precisa filtrar por elas:
 -- pedir ao cliente uma peca que ele recusou seria erro na portaria.
 alter table appintura2.orcamento_itens
-  add column aprovado boolean not null default true;
+  add column if not exists aprovado boolean not null default true;
 
 alter table appintura2.orcamentos
-  add column valor_aprovado numeric(12, 2);
+  add column if not exists valor_aprovado numeric(12, 2);
 
 comment on column appintura2.orcamentos.valor_aprovado is
   'Valor fechado. NULL enquanto nao ha decisao; menor que valor_total na aprovacao parcial.';
@@ -302,6 +302,7 @@ begin
 end
 $$;
 
+drop trigger if exists orcamento_eventos_notificar on appintura2.orcamento_eventos;
 create trigger orcamento_eventos_notificar
   after insert on appintura2.orcamento_eventos
   for each row execute function appintura2.notificar_evento_orcamento();

@@ -20,6 +20,11 @@ dist-ssr
 # `functions/_shared/romaneio-pdf`, o layout do PDF que o front e a Edge
 # Function compartilham para gerar o MESMO documento. Excluir a pasta inteira
 # quebra o `tsc -b` dentro da imagem.
+# Testes de interface: rodam no CI/local, nao entram na imagem. O `tsc -b` do
+# build ja os type-checa a partir do fonte, entao excluir aqui nao esconde erro.
+src/testes
+vitest.config.ts
+
 supabase/migrations
 supabase/seed.sql
 supabase/.temp

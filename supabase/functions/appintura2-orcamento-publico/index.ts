@@ -27,7 +27,14 @@ Deno.serve(async (req) => {
 
   const ip = ipDaRequisicao(req)
 
-  if (excedeuLimite(`ver:${ip}`)) {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    { db: { schema: 'appintura2' } },
+  )
+
+  // O contador vive no banco, então o cliente precisa existir antes da checagem.
+  if (await excedeuLimite(supabase, `ver:${ip}`)) {
     return json({ ok: false, motivo: 'muitas_tentativas' }, 429)
   }
 
@@ -38,12 +45,6 @@ Deno.serve(async (req) => {
   if (!corpo || !tokenValido(corpo.token)) {
     return json({ ok: false, motivo: 'indisponivel' }, 404)
   }
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    { db: { schema: 'appintura2' } },
-  )
 
   const { data, error } = await supabase.rpc('consultar_orcamento_publico', {
     p_token_hash: await hashToken(corpo.token),

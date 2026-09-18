@@ -100,7 +100,15 @@ Deno.serve(async (req) => {
 
   const ip = ipDaRequisicao(req)
 
-  if (excedeuLimite(`decidir:${ip}`, 10)) {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    { db: { schema: 'appintura2' } },
+  )
+
+  // Limite mais apertado que o da consulta: decidir é irreversível, e ninguém
+  // legítimo precisa tentar dez vezes por minuto.
+  if (await excedeuLimite(supabase, `decidir:${ip}`, 10)) {
     return json({ ok: false, motivo: 'muitas_tentativas' }, 429)
   }
 
@@ -115,12 +123,6 @@ Deno.serve(async (req) => {
   if (!validado) return json({ ok: false, motivo: 'payload_invalido' }, 400)
 
   const payload = validado
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    { db: { schema: 'appintura2' } },
-  )
 
   const { data, error } = await supabase.rpc('decidir_orcamento_publico', {
     p_token_hash: await hashToken(payload.token),

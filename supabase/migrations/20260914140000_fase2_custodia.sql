@@ -11,7 +11,8 @@
 -- Tipos
 -- ----------------------------------------------------------------------------
 
-create type appintura2.unidade_item as enum ('peca', 'kg', 'm2', 'conjunto');
+do $tipo$ begin
+  create type appintura2.unidade_item as enum ('peca', 'kg', 'm2', 'conjunto');
 
 create type appintura2.condicao_item as enum ('integra', 'avariada', 'com_observacao');
 
@@ -19,19 +20,24 @@ create type appintura2.status_recebimento as enum (
   'pendente_conferencia',
   'recebido_conferido',
   'recebido_com_ressalva'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
-create type appintura2.status_devolucao as enum (
+do $tipo$ begin
+  create type appintura2.status_devolucao as enum (
   'aguardando_retirada',
   'retirado',
   'retirado_parcial'
-);
+  );
+exception when duplicate_object then null;
+end $tipo$;
 
 -- ----------------------------------------------------------------------------
 -- Configurações operacionais por empresa
 -- ----------------------------------------------------------------------------
 
-create table appintura2.configuracoes_tenant (
+create table if not exists appintura2.configuracoes_tenant (
   tenant_id uuid primary key references appintura2.tenants (id) on delete cascade,
   dias_alerta_custodia integer not null default 15,
   constraint configuracoes_dias_alerta_valido
@@ -47,7 +53,7 @@ create table appintura2.configuracoes_tenant (
 -- conferências simultâneas não tiram o mesmo número.
 -- ----------------------------------------------------------------------------
 
-create table appintura2.tenant_sequencias (
+create table if not exists appintura2.tenant_sequencias (
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   tipo text not null,
   ultimo_numero integer not null default 0,
@@ -101,7 +107,7 @@ $$;
 -- Romaneio de recebimento (entrada)
 -- ----------------------------------------------------------------------------
 
-create table appintura2.romaneios_recebimento (
+create table if not exists appintura2.romaneios_recebimento (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   numero integer not null,
@@ -122,18 +128,19 @@ create table appintura2.romaneios_recebimento (
   constraint romaneios_recebimento_numero_unico unique (tenant_id, numero)
 );
 
-create index romaneios_recebimento_tenant_idx
+create index if not exists romaneios_recebimento_tenant_idx
   on appintura2.romaneios_recebimento (tenant_id, data_hora desc);
-create index romaneios_recebimento_cliente_idx
+create index if not exists romaneios_recebimento_cliente_idx
   on appintura2.romaneios_recebimento (cliente_id);
 
+drop trigger if exists romaneios_recebimento_numero on appintura2.romaneios_recebimento;
 create trigger romaneios_recebimento_numero
   before insert on appintura2.romaneios_recebimento
   for each row
   when (new.numero is null)
   execute function appintura2.atribuir_numero_recebimento();
 
-create table appintura2.romaneio_recebimento_itens (
+create table if not exists appintura2.romaneio_recebimento_itens (
   id uuid primary key default gen_random_uuid(),
   romaneio_id uuid not null
     references appintura2.romaneios_recebimento (id) on delete cascade,
@@ -146,14 +153,14 @@ create table appintura2.romaneio_recebimento_itens (
   constraint recebimento_item_quantidade_positiva check (quantidade > 0)
 );
 
-create index romaneio_recebimento_itens_romaneio_idx
+create index if not exists romaneio_recebimento_itens_romaneio_idx
   on appintura2.romaneio_recebimento_itens (romaneio_id);
 
 -- ----------------------------------------------------------------------------
 -- Romaneio de devolução (saída)
 -- ----------------------------------------------------------------------------
 
-create table appintura2.romaneios_devolucao (
+create table if not exists appintura2.romaneios_devolucao (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   numero integer not null,
@@ -170,13 +177,13 @@ create table appintura2.romaneios_devolucao (
   constraint romaneios_devolucao_numero_unico unique (tenant_id, numero)
 );
 
-create index romaneios_devolucao_tenant_idx
+create index if not exists romaneios_devolucao_tenant_idx
   on appintura2.romaneios_devolucao (tenant_id, data_hora desc);
-create index romaneios_devolucao_cliente_idx
+create index if not exists romaneios_devolucao_cliente_idx
   on appintura2.romaneios_devolucao (cliente_id);
 
 -- Uma devolução pode consolidar itens de vários romaneios de entrada.
-create table appintura2.romaneio_devolucao_recebimentos (
+create table if not exists appintura2.romaneio_devolucao_recebimentos (
   devolucao_id uuid not null
     references appintura2.romaneios_devolucao (id) on delete cascade,
   recebimento_id uuid not null
@@ -184,7 +191,7 @@ create table appintura2.romaneio_devolucao_recebimentos (
   primary key (devolucao_id, recebimento_id)
 );
 
-create table appintura2.romaneio_devolucao_itens (
+create table if not exists appintura2.romaneio_devolucao_itens (
   id uuid primary key default gen_random_uuid(),
   devolucao_id uuid not null
     references appintura2.romaneios_devolucao (id) on delete cascade,
@@ -197,16 +204,16 @@ create table appintura2.romaneio_devolucao_itens (
   constraint devolucao_item_quantidade_positiva check (quantidade > 0)
 );
 
-create index romaneio_devolucao_itens_devolucao_idx
+create index if not exists romaneio_devolucao_itens_devolucao_idx
   on appintura2.romaneio_devolucao_itens (devolucao_id);
-create index romaneio_devolucao_itens_origem_idx
+create index if not exists romaneio_devolucao_itens_origem_idx
   on appintura2.romaneio_devolucao_itens (recebimento_item_id);
 
 -- ----------------------------------------------------------------------------
 -- Fotos (metadados; o binário vive no bucket appintura2-romaneios-fotos)
 -- ----------------------------------------------------------------------------
 
-create table appintura2.romaneio_fotos (
+create table if not exists appintura2.romaneio_fotos (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references appintura2.tenants (id) on delete cascade,
   recebimento_item_id uuid
@@ -224,11 +231,12 @@ create table appintura2.romaneio_fotos (
   )
 );
 
-create index romaneio_fotos_recebimento_idx
+create index if not exists romaneio_fotos_recebimento_idx
   on appintura2.romaneio_fotos (recebimento_item_id);
-create index romaneio_fotos_devolucao_idx
+create index if not exists romaneio_fotos_devolucao_idx
   on appintura2.romaneio_fotos (devolucao_item_id);
 
+drop trigger if exists romaneios_devolucao_numero on appintura2.romaneios_devolucao;
 create trigger romaneios_devolucao_numero
   before insert on appintura2.romaneios_devolucao
   for each row
@@ -243,7 +251,7 @@ create trigger romaneios_devolucao_numero
 -- pela porta dos fundos.
 -- ----------------------------------------------------------------------------
 
-create view appintura2.saldo_custodia
+create or replace view appintura2.saldo_custodia
 with (security_invoker = true)
 as
 select
@@ -308,14 +316,20 @@ alter table appintura2.romaneio_fotos enable row level security;
 -- tenant_sequencias: sem policy de acesso direto. O contador só é tocado pela
 -- função SECURITY DEFINER; ninguém lê nem escreve pelo client.
 
+drop policy if exists "configuracoes_select" on appintura2.configuracoes_tenant;
+drop policy if exists "configuracoes_select" on appintura2.configuracoes_tenant;
 create policy "configuracoes_select"
   on appintura2.configuracoes_tenant for select to authenticated
   using (tenant_id in (select appintura2.get_user_tenant_ids()));
 
+drop policy if exists "configuracoes_upsert" on appintura2.configuracoes_tenant;
+drop policy if exists "configuracoes_upsert" on appintura2.configuracoes_tenant;
 create policy "configuracoes_upsert"
   on appintura2.configuracoes_tenant for insert to authenticated
   with check (appintura2.has_role('admin', tenant_id));
 
+drop policy if exists "configuracoes_update" on appintura2.configuracoes_tenant;
+drop policy if exists "configuracoes_update" on appintura2.configuracoes_tenant;
 create policy "configuracoes_update"
   on appintura2.configuracoes_tenant for update to authenticated
   using (appintura2.has_role('admin', tenant_id))
@@ -333,18 +347,21 @@ begin
   ]
   loop
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for select to authenticated
         using (tenant_id in (select appintura2.get_user_tenant_ids()));
     $f$, tabela || '_select', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for insert to authenticated
         with check (appintura2.pode_movimentar_custodia(tenant_id));
     $f$, tabela || '_insert', tabela);
 
     execute format($f$
+      drop policy if exists %1$I on appintura2.%2$I;
       create policy %1$I on appintura2.%2$I
         for update to authenticated
         using (appintura2.pode_movimentar_custodia(tenant_id))
@@ -359,6 +376,8 @@ $$;
 
 -- Tabelas filhas: autorização pela raiz.
 
+drop policy if exists "recebimento_itens_select" on appintura2.romaneio_recebimento_itens;
+drop policy if exists "recebimento_itens_select" on appintura2.romaneio_recebimento_itens;
 create policy "recebimento_itens_select"
   on appintura2.romaneio_recebimento_itens for select to authenticated
   using (
@@ -369,6 +388,8 @@ create policy "recebimento_itens_select"
     )
   );
 
+drop policy if exists "recebimento_itens_insert" on appintura2.romaneio_recebimento_itens;
+drop policy if exists "recebimento_itens_insert" on appintura2.romaneio_recebimento_itens;
 create policy "recebimento_itens_insert"
   on appintura2.romaneio_recebimento_itens for insert to authenticated
   with check (
@@ -379,6 +400,8 @@ create policy "recebimento_itens_insert"
     )
   );
 
+drop policy if exists "recebimento_itens_update" on appintura2.romaneio_recebimento_itens;
+drop policy if exists "recebimento_itens_update" on appintura2.romaneio_recebimento_itens;
 create policy "recebimento_itens_update"
   on appintura2.romaneio_recebimento_itens for update to authenticated
   using (
@@ -396,6 +419,8 @@ create policy "recebimento_itens_update"
     )
   );
 
+drop policy if exists "devolucao_itens_select" on appintura2.romaneio_devolucao_itens;
+drop policy if exists "devolucao_itens_select" on appintura2.romaneio_devolucao_itens;
 create policy "devolucao_itens_select"
   on appintura2.romaneio_devolucao_itens for select to authenticated
   using (
@@ -406,6 +431,8 @@ create policy "devolucao_itens_select"
     )
   );
 
+drop policy if exists "devolucao_itens_insert" on appintura2.romaneio_devolucao_itens;
+drop policy if exists "devolucao_itens_insert" on appintura2.romaneio_devolucao_itens;
 create policy "devolucao_itens_insert"
   on appintura2.romaneio_devolucao_itens for insert to authenticated
   with check (
@@ -416,6 +443,8 @@ create policy "devolucao_itens_insert"
     )
   );
 
+drop policy if exists "devolucao_recebimentos_select" on appintura2.romaneio_devolucao_recebimentos;
+drop policy if exists "devolucao_recebimentos_select" on appintura2.romaneio_devolucao_recebimentos;
 create policy "devolucao_recebimentos_select"
   on appintura2.romaneio_devolucao_recebimentos for select to authenticated
   using (
@@ -426,6 +455,8 @@ create policy "devolucao_recebimentos_select"
     )
   );
 
+drop policy if exists "devolucao_recebimentos_insert" on appintura2.romaneio_devolucao_recebimentos;
+drop policy if exists "devolucao_recebimentos_insert" on appintura2.romaneio_devolucao_recebimentos;
 create policy "devolucao_recebimentos_insert"
   on appintura2.romaneio_devolucao_recebimentos for insert to authenticated
   with check (
@@ -458,6 +489,8 @@ values (
 )
 on conflict (id) do nothing;
 
+drop policy if exists "appintura2_romaneios_fotos_select" on storage.objects;
+drop policy if exists "appintura2_romaneios_fotos_select" on storage.objects;
 create policy "appintura2_romaneios_fotos_select"
   on storage.objects for select to authenticated
   using (
@@ -467,6 +500,8 @@ create policy "appintura2_romaneios_fotos_select"
     )
   );
 
+drop policy if exists "appintura2_romaneios_fotos_insert" on storage.objects;
+drop policy if exists "appintura2_romaneios_fotos_insert" on storage.objects;
 create policy "appintura2_romaneios_fotos_insert"
   on storage.objects for insert to authenticated
   with check (

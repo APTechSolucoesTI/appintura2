@@ -49,26 +49,34 @@ export function userAgentDaRequisicao(req: Request): string {
 }
 
 /**
- * Freio de força bruta, em memória do isolate.
+ * Freio de força bruta.
  *
- * Não substitui um rate limit de verdade no proxy: o isolate recicla e a
- * contagem zera. Segura a tentativa trivial de varrer tokens, que é o ataque
- * que essa rota atrai.
+ * A contagem vive no BANCO, não na memória do isolate: o runtime recicla a
+ * qualquer momento e cada isolate contava o seu, então o limite anterior
+ * segurava a tentativa distraída e mais nada.
+ *
+ * Falha ABERTO de propósito. Se o banco não responder, a alternativa seria
+ * recusar todo mundo — e aí uma indisponibilidade do Postgres derrubaria
+ * também o portal de aprovação, que é o que o cliente usa.
  */
-const tentativas = new Map<string, { contador: number; janela: number }>()
+export async function excedeuLimite(
+  supabase: { rpc: (nome: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> },
+  chave: string,
+  limite = 20,
+  janelaSegundos = 60,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('excedeu_limite', {
+    p_chave: chave,
+    p_limite: limite,
+    p_janela_segundos: janelaSegundos,
+  })
 
-export function excedeuLimite(chave: string, maximo = 20, janelaMs = 60_000): boolean {
-  const agora = Date.now()
-  const atual = tentativas.get(chave)
-
-  if (!atual || agora - atual.janela > janelaMs) {
-    tentativas.set(chave, { contador: 1, janela: agora })
+  if (error) {
+    console.error('rate limit indisponivel', error)
     return false
   }
 
-  atual.contador += 1
-
-  return atual.contador > maximo
+  return data === true
 }
 
 export const CORS = {

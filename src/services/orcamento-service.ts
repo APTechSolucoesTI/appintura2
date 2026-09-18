@@ -328,3 +328,26 @@ export async function motivosDeRecusa(tenantId: string): Promise<MotivoRecusa[]>
     b.created_at.localeCompare(a.created_at),
   )
 }
+
+/**
+ * Nomes da equipe, para traduzir `vendedor_id` na tela do funil.
+ *
+ * Sai de `usuarios`, que a policy da Fase 0 já limita a quem divide empresa com
+ * você — não vira diretório de todos os usuários do produto.
+ */
+export async function equipeDoTenant(
+  tenantId: string,
+): Promise<{ id: string; nome: string }[]> {
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('usuario:usuarios(id, nome)')
+    .eq('tenant_id', tenantId)
+
+  if (error) throw new OrcamentoError('Nao foi possivel carregar a equipe.')
+
+  type Linha = { usuario: { id: string; nome: string } | null }
+
+  return ((data ?? []) as unknown as Linha[]).flatMap((linha) =>
+    linha.usuario ? [linha.usuario] : [],
+  )
+}

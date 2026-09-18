@@ -40,8 +40,11 @@ $$;
 alter table appintura2.orcamento_itens
   alter column area_m2 drop default;
 
-alter table appintura2.orcamento_itens
-  add constraint orcamento_itens_area_positiva check (area_m2 > 0);
+do $cs$ begin
+  alter table appintura2.orcamento_itens
+    add constraint orcamento_itens_area_positiva check (area_m2 > 0);
+exception when duplicate_object then null;
+end $cs$;
 
 comment on column appintura2.orcamento_itens.area_m2 is
   'Area por unidade, em m2. Obrigatoria e > 0: alimenta o consumo de tinta e o custo por m2, e e copiada para os_itens, que tambem exige positiva.';
