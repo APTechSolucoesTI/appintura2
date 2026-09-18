@@ -9,10 +9,10 @@ insert into appintura2.cores (tenant_id, codigo_ral, nome_comercial, fabricante,
 values (:'t1','R','P','W','poliester','lisa','fosco',120,38.5,'L',current_date+365) returning id as cor1 \gset
 select set_config('request.jwt.claims', json_build_object('sub', :'uid','role','authenticated')::text, true) as _c \gset
 
-\-- Coerencia entre o que a TELA oferece e o que o BANCO aceita. Um botao que
--- existe na interface e falha na RPC e bug de produto, nao de teste -- foi
--- assim que o reenvio de link apos pedido de alteracao foi descoberto.
-echo '=== REGRAS DE NEGOCIO: coerencia UI x banco ==='
+-- Coerência entre o que a TELA oferece e o que o BANCO aceita. Um botão que
+-- existe na interface e falha na RPC é bug de produto, não de teste — foi
+-- assim que o reenvio de link após pedido de alteração foi descoberto.
+\echo '=== REGRAS DE NEGOCIO: coerencia UI x banco ==='
 
 -- orcamento que o cliente pediu alteracao
 set local role authenticated;

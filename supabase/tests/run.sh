@@ -29,9 +29,19 @@ for arquivo in "$DIR"/*.sql; do
 
   echo "$saida" | grep -E "PASS|FAIL|INFO|ERROR" | sed 's/^NOTICE:  //' | sed 's/^ //'
 
-  total=$(( total + $(echo "$saida" | grep -c -E "PASS|FAIL") ))
+  no_arquivo=$(echo "$saida" | grep -c -E "PASS|FAIL")
+
+  # Arquivo que não produz asserção nenhuma está QUEBRADO, não aprovado. Um
+  # `\--` por engano fez o 05 abortar na linha 12 e o runner deu verde — o pior
+  # resultado possível para um runner de teste.
+  if [ "$no_arquivo" -eq 0 ]; then
+    echo "  !! nenhuma asserção executada — arquivo provavelmente abortou"
+    erros=$(( erros + 1 ))
+  fi
+
+  total=$(( total + no_arquivo ))
   falhas=$(( falhas + $(echo "$saida" | grep -c "FAIL") ))
-  erros=$(( erros + $(echo "$saida" | grep -c "^psql.*ERROR") ))
+  erros=$(( erros + $(echo "$saida" | grep -c -E "^psql.*(ERROR|error:)") ))
 done
 
 echo ""
