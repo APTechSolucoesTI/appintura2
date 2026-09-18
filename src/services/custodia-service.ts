@@ -19,16 +19,21 @@ import { criarStoreSupabase } from './supabase-store'
  */
 
 // Mais recente primeiro: a portaria quase sempre quer o último romaneio.
+// As fotos penduram no ITEM, não no romaneio: `romaneio_fotos` tem FK para
+// `romaneio_recebimento_itens`, e é assim que `RomaneioRecebimentoItem.fotos`
+// sempre foi declarado. Pedi-las no nível do romaneio devolvia PGRST200 e
+// derrubava a listagem inteira — e, por tabela, o painel, que espera o saldo
+// de custódia dentro de um `Promise.all`.
 export const recebimentosStore = criarStoreSupabase<RomaneioRecebimento>({
   tabela: 'romaneios_recebimento',
-  select: '*, itens:romaneio_recebimento_itens(*), fotos:romaneio_fotos(*)',
+  select: '*, itens:romaneio_recebimento_itens(*, fotos:romaneio_fotos(*))',
   rpcGravar: { nome: 'salvar_recebimento', campoItens: 'itens' },
   ordenar: (a, b) => b.numero - a.numero,
 })
 
 export const devolucoesStore = criarStoreSupabase<RomaneioDevolucao>({
   tabela: 'romaneios_devolucao',
-  select: '*, itens:romaneio_devolucao_itens(*), fotos:romaneio_fotos(*)',
+  select: '*, itens:romaneio_devolucao_itens(*, fotos:romaneio_fotos(*))',
   rpcGravar: { nome: 'salvar_devolucao', campoItens: 'itens' },
   ordenar: (a, b) => b.numero - a.numero,
 })

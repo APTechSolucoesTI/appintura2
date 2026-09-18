@@ -55,6 +55,32 @@ dois testes de expiração. Ao escrever teste novo, mude estado pelo caminho rea
 | `02_orcamento.sql` | Orçamento fases 1–5, portal público, conversão, funil, grants |
 | `03_orcamento_bordas.sql` | Expiração, revisão, recusa, aprovação parcial, casos de borda |
 | `04_modulos.sql` | Estoque, produção, qualidade, financeiro, custódia |
+| `05_regras_negocio.sql` | Regras de negócio transversais |
+| `selects-dos-stores.sh` | Cada `select` de `src/services/` contra o PostgREST |
+
+## A terceira camada: os selects dos stores
+
+```bash
+EMAIL=... SENHA=... bash supabase/tests/selects-dos-stores.sh
+```
+
+Este não fala SQL nem renderiza tela: ele dispara, contra o PostgREST real,
+exatamente a string de `select` que cada store escreve em `src/services/`.
+
+Existe por um bug que passou pelas duas outras camadas sem encostar em nenhuma.
+O store de custódia pedia `fotos:romaneio_fotos(*)` no nível do **romaneio**,
+mas a FK de `romaneio_fotos` aponta para o **item**. O PostgREST respondia 400
+(`PGRST200`), a listagem morria — e o painel inicial ficava **em branco**,
+porque ele busca o saldo de custódia dentro de um `Promise.all` e uma promessa
+rejeitada derruba as outras seis. A tela toda sumiu por causa de uma vírgula no
+lugar errado.
+
+A suíte SQL não pegaria: o relacionamento existe no banco, só não é o que foi
+pedido. Os testes de interface não pegariam: não fazem rede. O erro só existe na
+fronteira entre o select escrito no TypeScript e as FKs que existem de fato.
+
+Ao mudar um `select` em `src/services/`, mude a linha correspondente aqui — é
+só isso que mantém o teste honesto.
 
 ## O que a suíte **não** cobre
 
