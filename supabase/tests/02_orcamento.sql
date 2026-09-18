@@ -10,15 +10,15 @@ values (:'t1','RAL9005','Preto','WEG','poliester','lisa','fosco',120,38.5,'L1',c
 select set_config('request.jwt.claims', json_build_object('sub', :'uid','role','authenticated')::text, true) as _cfg \gset
 set local role authenticated;
 
-\-- Fotografia do funil ANTES do teste: as assercoes da secao H comparam o
--- DELTA. Medir o valor absoluto so funcionava com o banco vazio, e a view
--- agrupa por (mes, vendedor) -- com dados reais ela devolve varias linhas, e o
--- subselect estourava com 'more than one row'.
-select coalesce(sum(ganhos),0) as ganhos_antes,
-       coalesce(sum(valor_fechado),0) as fechado_antes
-  from appintura2.vw_funil_orcamentos where tenant_id=:'t1' gset
+-- Fotografia do funil ANTES do teste: as asserções da seção H comparam o
+-- DELTA. Medir o valor absoluto só funcionava com o banco vazio, e a view
+-- agrupa por (mês, vendedor) — com dados reais ela devolve várias linhas, e o
+-- subselect estourava com "more than one row".
+select coalesce(sum(ganhos), 0)        as ganhos_antes,
+       coalesce(sum(valor_fechado), 0) as fechado_antes
+  from appintura2.vw_funil_orcamentos where tenant_id = :'t1' \gset
 
-echo '=========== E. ORCAMENTO — FASES 1 a 3 ==========='
+\echo '=========== E. ORCAMENTO — FASES 1 a 3 ==========='
 select appintura2.salvar_orcamento(:'t1',
   jsonb_build_object('cliente_id',:'c1','cor_id',:'cor1','data_validade',(current_date+15)::text,
     'espessura_min_micron',60,'espessura_max_micron',90,'prazo_entrega_dias',5,
